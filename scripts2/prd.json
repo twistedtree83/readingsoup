@@ -27,7 +27,7 @@
       "id": "S3",
       "issue": 26,
       "title": "Condition: Fog",
-      "passes": false,
+      "passes": true,
       "afk": true,
       "depends": [
         "S1"

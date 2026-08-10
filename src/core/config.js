@@ -11,6 +11,10 @@ export const CONFIG = {
     letterSpacing: "-0.03em",
     wordGaps: false,
   },
+  fog: {
+    // 1 = full contrast. Low enough to force straining, high enough to finish.
+    contrast: 0.09,
+  },
   round: {
     watchWindowMs: 25_000,
     playsPerRound: 3,

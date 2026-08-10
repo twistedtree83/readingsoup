@@ -5,7 +5,7 @@
 
 import { CONDITIONS, IMPLEMENTED } from "./conditions.js";
 
-const CLEAN_RENDER = { wordGaps: true, letterSpacing: "normal" };
+const CLEAN_RENDER = { wordGaps: true, letterSpacing: "normal", contrast: 1 };
 
 function tokenise(passage) {
   return passage.split(/\s+/).filter(Boolean).map((text, i) => ({
@@ -31,9 +31,18 @@ export function mangle(passage, condition, config, opts = {}) {
       return {
         condition,
         render: {
+          ...CLEAN_RENDER,
           wordGaps: config.soup.wordGaps,
           letterSpacing: config.soup.letterSpacing,
         },
+        tokens,
+      };
+
+    case CONDITIONS.FOG:
+      // The words are all there. You just cannot see them.
+      return {
+        condition,
+        render: { ...CLEAN_RENDER, contrast: config.fog.contrast },
         tokens,
       };
     default:

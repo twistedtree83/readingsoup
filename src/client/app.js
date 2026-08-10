@@ -53,7 +53,8 @@ function reading(view) {
     <div>
       <p class="eyebrow">Read this out loud</p>
       <div class="passage" data-gaps="${view.render.wordGaps}"
-           style="letter-spacing:${view.render.letterSpacing}">${tokens}</div>
+           style="letter-spacing:${view.render.letterSpacing};
+                  color:color-mix(in srgb, var(--ink) ${view.render.contrast * 100}%, var(--paper))">${tokens}</div>
       ${view.accommodated ? `<p class="helped">That helped. Finish the sentence and move on.</p>` : ""}
       <p class="note">Which of these would make this easier?</p>
       <div class="hand">

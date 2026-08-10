@@ -40,4 +40,11 @@ export const CARD_LABELS = {
 
 // Conditions with a working mangle implementation. Later slices extend this;
 // the tour and the tests both read from it, so adding a condition is one edit.
-export const IMPLEMENTED = [CONDITIONS.SOUP];
+export const IMPLEMENTED = [CONDITIONS.SOUP, CONDITIONS.FOG];
+
+// Conditions that alter the text content itself. For these the rendered text
+// must never reconstruct the source. The rest are presentational: the words are
+// genuinely there, and the barrier is how they are shown. That distinction is
+// deliberate — the privacy boundary sits at the non-reader line, not between a
+// reader and the passage they are supposed to be reading.
+export const CONTENT_TRANSFORMING = [CONDITIONS.SOUP, CONDITIONS.MUDSOUND];
