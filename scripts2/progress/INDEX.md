@@ -4,7 +4,7 @@ Graph: `scripts2/prd.json` · Branch: `sprint/soup-mvp` · Parent: #1
 
 | ID | Issue | Task | AFK | Status |
 |----|-------|------|-----|--------|
-| S1  | #24 | Walking skeleton: solo mode, Soup, end to end | yes | pending |
+| S1  | #24 | Walking skeleton: solo mode, Soup, end to end | yes | **shipped** — [S1.md](S1.md) |
 | S2  | #25 | Connect hosting: Netlify site and Fly app | **no** | pending — human gate |
 | S3  | #26 | Condition: Fog | yes | pending |
 | S4  | #27 | Condition: Slippery Floor | yes | pending |

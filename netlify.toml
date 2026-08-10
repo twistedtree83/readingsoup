@@ -1,0 +1,18 @@
+# Static site and solo mode. No build step.
+# The realtime server is deployed separately to Fly; if it is asleep, down or
+# never deployed, everything here still works.
+
+[build]
+  publish = "."
+  command = ""
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "no-referrer"
+
+[[redirects]]
+  from = "/host"
+  to = "/index.html"
+  status = 200

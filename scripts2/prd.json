@@ -4,28 +4,241 @@
   "branchName": "sprint/soup-mvp",
   "parentIssue": 1,
   "tasks": [
-    { "id": "S1",  "issue": 24, "title": "Walking skeleton: solo mode, Soup, end to end",              "passes": false, "afk": true,  "depends": [] },
-    { "id": "S2",  "issue": 25, "title": "Connect hosting: Netlify site and Fly app",                   "passes": false, "afk": false, "gate": "ship-gate", "depends": ["S1"] },
-    { "id": "S3",  "issue": 26, "title": "Condition: Fog",                                              "passes": false, "afk": true,  "depends": ["S1"] },
-    { "id": "S4",  "issue": 27, "title": "Condition: Slippery Floor",                                   "passes": false, "afk": true,  "depends": ["S1"] },
-    { "id": "S5",  "issue": 28, "title": "Condition: The Vanishing",                                    "passes": false, "afk": true,  "depends": ["S1"] },
-    { "id": "S6",  "issue": 29, "title": "Condition: Mudsound and the grapheme engine",                 "passes": false, "afk": true,  "depends": ["S1"] },
-    { "id": "S7",  "issue": 30, "title": "Condition: Butterfingers (solo form)",                        "passes": false, "afk": true,  "depends": ["S1"] },
-    { "id": "S8",  "issue": 31, "title": "Passage library: 20 passages and 10 dictation prompts",       "passes": false, "afk": true,  "depends": ["S1"] },
-    { "id": "S9",  "issue": 32, "title": "Solo tour complete: six conditions and the personal catalogue","passes": false, "afk": true, "depends": ["S3","S4","S5","S6","S7"] },
-    { "id": "S10", "issue": 33, "title": "Rooms and join: three roles, token identity, roster, QR",     "passes": false, "afk": true,  "depends": ["S1"] },
-    { "id": "S11", "issue": 34, "title": "Sim harness: headless N-participant sessions",                "passes": false, "afk": true,  "depends": ["S10"] },
-    { "id": "S12", "issue": 35, "title": "Turn loop and private passage delivery",                      "passes": false, "afk": true,  "depends": ["S10"] },
-    { "id": "S13", "issue": 36, "title": "The silent round",                                            "passes": false, "afk": true,  "depends": ["S12"] },
-    { "id": "S14", "issue": 37, "title": "Spotlight rounds: volunteers, random draw, coverage selection","passes": false, "afk": true, "depends": ["S13"] },
-    { "id": "S15", "issue": 38, "title": "Accommodation cards: dealing, play, resolution, attribution", "passes": false, "afk": true,  "depends": ["S14"] },
-    { "id": "S16", "issue": 39, "title": "Round pacing: watch window, play cap, facilitator override",  "passes": false, "afk": true,  "depends": ["S15"] },
-    { "id": "S17", "issue": 40, "title": "Tag in",                                                      "passes": false, "afk": true,  "depends": ["S16"] },
-    { "id": "S18", "issue": 41, "title": "True handovers: scribe and read it to them",                  "passes": false, "afk": true,  "depends": ["S6","S7","S16"] },
-    { "id": "S19", "issue": 42, "title": "Group-size modes and the silent solo fallback",               "passes": false, "afk": true,  "depends": ["S16"] },
-    { "id": "S20", "issue": 43, "title": "Reveal and debrief",                                          "passes": false, "afk": true,  "depends": ["S16"] },
-    { "id": "S21", "issue": 44, "title": "Late joiners and mid-session opt-out",                        "passes": false, "afk": true,  "depends": ["S16"] },
-    { "id": "S22", "issue": 45, "title": "Resilience: wake lock, crash snapshot, host takeover",        "passes": false, "afk": true,  "depends": ["S16"] },
-    { "id": "S23", "issue": 46, "title": "Tuning pass and polish",                                      "passes": false, "afk": false, "gate": "ship-gate", "depends": ["S22"] }
+    {
+      "id": "S1",
+      "issue": 24,
+      "title": "Walking skeleton: solo mode, Soup, end to end",
+      "passes": true,
+      "afk": true,
+      "depends": []
+    },
+    {
+      "id": "S2",
+      "issue": 25,
+      "title": "Connect hosting: Netlify site and Fly app",
+      "passes": false,
+      "afk": false,
+      "gate": "ship-gate",
+      "depends": [
+        "S1"
+      ]
+    },
+    {
+      "id": "S3",
+      "issue": 26,
+      "title": "Condition: Fog",
+      "passes": false,
+      "afk": true,
+      "depends": [
+        "S1"
+      ]
+    },
+    {
+      "id": "S4",
+      "issue": 27,
+      "title": "Condition: Slippery Floor",
+      "passes": false,
+      "afk": true,
+      "depends": [
+        "S1"
+      ]
+    },
+    {
+      "id": "S5",
+      "issue": 28,
+      "title": "Condition: The Vanishing",
+      "passes": false,
+      "afk": true,
+      "depends": [
+        "S1"
+      ]
+    },
+    {
+      "id": "S6",
+      "issue": 29,
+      "title": "Condition: Mudsound and the grapheme engine",
+      "passes": false,
+      "afk": true,
+      "depends": [
+        "S1"
+      ]
+    },
+    {
+      "id": "S7",
+      "issue": 30,
+      "title": "Condition: Butterfingers (solo form)",
+      "passes": false,
+      "afk": true,
+      "depends": [
+        "S1"
+      ]
+    },
+    {
+      "id": "S8",
+      "issue": 31,
+      "title": "Passage library: 20 passages and 10 dictation prompts",
+      "passes": false,
+      "afk": true,
+      "depends": [
+        "S1"
+      ]
+    },
+    {
+      "id": "S9",
+      "issue": 32,
+      "title": "Solo tour complete: six conditions and the personal catalogue",
+      "passes": false,
+      "afk": true,
+      "depends": [
+        "S3",
+        "S4",
+        "S5",
+        "S6",
+        "S7"
+      ]
+    },
+    {
+      "id": "S10",
+      "issue": 33,
+      "title": "Rooms and join: three roles, token identity, roster, QR",
+      "passes": false,
+      "afk": true,
+      "depends": [
+        "S1"
+      ]
+    },
+    {
+      "id": "S11",
+      "issue": 34,
+      "title": "Sim harness: headless N-participant sessions",
+      "passes": false,
+      "afk": true,
+      "depends": [
+        "S10"
+      ]
+    },
+    {
+      "id": "S12",
+      "issue": 35,
+      "title": "Turn loop and private passage delivery",
+      "passes": false,
+      "afk": true,
+      "depends": [
+        "S10"
+      ]
+    },
+    {
+      "id": "S13",
+      "issue": 36,
+      "title": "The silent round",
+      "passes": false,
+      "afk": true,
+      "depends": [
+        "S12"
+      ]
+    },
+    {
+      "id": "S14",
+      "issue": 37,
+      "title": "Spotlight rounds: volunteers, random draw, coverage selection",
+      "passes": false,
+      "afk": true,
+      "depends": [
+        "S13"
+      ]
+    },
+    {
+      "id": "S15",
+      "issue": 38,
+      "title": "Accommodation cards: dealing, play, resolution, attribution",
+      "passes": false,
+      "afk": true,
+      "depends": [
+        "S14"
+      ]
+    },
+    {
+      "id": "S16",
+      "issue": 39,
+      "title": "Round pacing: watch window, play cap, facilitator override",
+      "passes": false,
+      "afk": true,
+      "depends": [
+        "S15"
+      ]
+    },
+    {
+      "id": "S17",
+      "issue": 40,
+      "title": "Tag in",
+      "passes": false,
+      "afk": true,
+      "depends": [
+        "S16"
+      ]
+    },
+    {
+      "id": "S18",
+      "issue": 41,
+      "title": "True handovers: scribe and read it to them",
+      "passes": false,
+      "afk": true,
+      "depends": [
+        "S6",
+        "S7",
+        "S16"
+      ]
+    },
+    {
+      "id": "S19",
+      "issue": 42,
+      "title": "Group-size modes and the silent solo fallback",
+      "passes": false,
+      "afk": true,
+      "depends": [
+        "S16"
+      ]
+    },
+    {
+      "id": "S20",
+      "issue": 43,
+      "title": "Reveal and debrief",
+      "passes": false,
+      "afk": true,
+      "depends": [
+        "S16"
+      ]
+    },
+    {
+      "id": "S21",
+      "issue": 44,
+      "title": "Late joiners and mid-session opt-out",
+      "passes": false,
+      "afk": true,
+      "depends": [
+        "S16"
+      ]
+    },
+    {
+      "id": "S22",
+      "issue": 45,
+      "title": "Resilience: wake lock, crash snapshot, host takeover",
+      "passes": false,
+      "afk": true,
+      "depends": [
+        "S16"
+      ]
+    },
+    {
+      "id": "S23",
+      "issue": 46,
+      "title": "Tuning pass and polish",
+      "passes": false,
+      "afk": false,
+      "gate": "ship-gate",
+      "depends": [
+        "S22"
+      ]
+    }
   ]
 }

@@ -1,0 +1,160 @@
+/* Risograph / printed paper.
+   The chrome is high contrast and unmistakably deliberate, because the barriers
+   are simulated as deviation from a baseline. A soft resting state would leave
+   Fog nowhere to go and make every condition read as a broken app. */
+
+:root {
+  --paper: #F7F1E3;
+  --red: #E8452C;
+  --ink: #1F2B5B;
+  --deep: #141C38;
+  --blue-tint: #C3CCE8;
+  --red-tint: #F6C4B6;
+
+  --font: "Archivo", system-ui, -apple-system, sans-serif;
+  --display-tracking: -0.04em;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  background: var(--deep);
+  font-family: var(--font);
+  -webkit-text-size-adjust: 100%;
+}
+
+#app {
+  min-height: 100dvh;
+  background: var(--paper);
+  color: var(--ink);
+  display: flex;
+  flex-direction: column;
+  padding: 34px 26px calc(26px + env(safe-area-inset-bottom));
+  max-width: 560px;
+  margin: 0 auto;
+}
+
+.eyebrow {
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--red);
+  margin: 0;
+}
+
+.display {
+  font-size: clamp(46px, 13vw, 62px);
+  font-weight: 900;
+  letter-spacing: var(--display-tracking);
+  line-height: 0.95;
+  margin: 26px 0 0;
+}
+
+.wordmark {
+  position: relative;
+  align-self: flex-start;
+  margin: 8px 0 0;
+}
+.wordmark span {
+  display: block;
+  font-size: clamp(72px, 22vw, 116px);
+  font-weight: 900;
+  letter-spacing: -0.05em;
+  line-height: 0.85;
+}
+.wordmark .under { position: absolute; top: 4px; left: 5px; color: var(--red); }
+.wordmark .over { position: relative; color: var(--ink); }
+
+.lede {
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.35;
+  margin: 22px 0 0;
+}
+
+.spacer { margin-top: auto; }
+
+.btn {
+  display: block;
+  width: 100%;
+  border: 4px solid var(--deep);
+  padding: 22px;
+  text-align: center;
+  font-family: var(--font);
+  font-size: 26px;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  cursor: pointer;
+  margin-top: 16px;
+}
+.btn-primary { background: var(--red); color: var(--paper); }
+.btn-secondary { background: var(--ink); color: var(--paper); }
+
+.note { font-size: 17px; font-weight: 600; line-height: 1.35; margin: 16px 0 0; }
+
+/* --- the passage ------------------------------------------------------- */
+
+.passage {
+  border: 4px solid var(--ink);
+  padding: 22px;
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1.5;
+  margin: 24px 0 0;
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+.passage .tok { display: inline; }
+
+/* --- the hand ---------------------------------------------------------- */
+
+.hand {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin: 22px 0 0;
+}
+.card {
+  min-height: 116px;
+  border: 4px solid var(--deep);
+  padding: 12px;
+  display: flex;
+  align-items: flex-end;
+  font-family: var(--font);
+  font-size: 21px;
+  font-weight: 900;
+  line-height: 0.95;
+  letter-spacing: -0.03em;
+  text-align: left;
+  cursor: pointer;
+}
+.card[data-card="give-it-room"]       { background: var(--red);       color: var(--paper); }
+.card[data-card="chunk-it"]           { background: var(--ink);       color: var(--paper); }
+.card[data-card="line-guide"]         { background: var(--paper);     color: var(--ink); border-color: var(--ink); }
+.card[data-card="read-it-to-them"]    { background: var(--paper);     color: var(--red); border-color: var(--red); }
+.card[data-card="change-the-colours"] { background: linear-gradient(105deg, var(--red) 0 52%, var(--ink) 52% 100%); color: var(--paper); }
+.card[data-card="give-them-a-scribe"] { background: var(--blue-tint); color: var(--ink); border-color: var(--red); }
+
+.helped {
+  background: var(--red-tint);
+  border: 4px solid var(--ink);
+  padding: 18px;
+  font-size: 20px;
+  font-weight: 700;
+  margin: 22px 0 0;
+}
+
+.catalogue-item {
+  border: 4px solid var(--ink);
+  padding: 18px;
+  margin: 14px 0 0;
+  font-size: 22px;
+  font-weight: 700;
+}
+.catalogue-item.had { background: var(--red-tint); }
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}

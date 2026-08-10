@@ -1,0 +1,14 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "soup-static",
+      "runtimeExecutable": "bun",
+      "runtimeArgs": [
+        "run",
+        "scripts/static.js"
+      ],
+      "port": 8765
+    }
+  ]
+}
