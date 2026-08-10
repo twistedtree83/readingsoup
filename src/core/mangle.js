@@ -6,7 +6,13 @@
 import { CONDITIONS, IMPLEMENTED } from "./conditions.js";
 import { rng } from "./random.js";
 
-const CLEAN_RENDER = { wordGaps: true, letterSpacing: "normal", contrast: 1, drift: false };
+const CLEAN_RENDER = {
+  wordGaps: true,
+  letterSpacing: "normal",
+  contrast: 1,
+  drift: false,
+  chunkSize: 0,
+};
 
 function tokenise(passage) {
   return passage.split(/\s+/).filter(Boolean).map((text, i) => ({
@@ -23,7 +29,10 @@ export function mangle(passage, condition, config, opts = {}) {
   const tokens = tokenise(passage);
 
   if (opts.accommodated) {
-    return { condition, render: { ...CLEAN_RENDER }, tokens };
+    // Chunk it delivers the passage in stable pieces that do not expire.
+    const chunkSize =
+      condition === CONDITIONS.VANISHING ? config.vanishing.chunkSize : CLEAN_RENDER.chunkSize;
+    return { condition, render: { ...CLEAN_RENDER, chunkSize }, tokens };
   }
 
   switch (condition) {
@@ -56,6 +65,18 @@ export function mangle(passage, condition, config, opts = {}) {
         condition,
         render: { ...CLEAN_RENDER, drift: Boolean(drift) && !opts.reducedMotion },
         tokens: tokens.map((t, i) => ({ ...t, ...bands[Math.floor(i / tokensPerBand)] })),
+      };
+    }
+
+    case CONDITIONS.VANISHING: {
+      // Words are removed from the DOM on expiry, never faded to zero opacity.
+      // This is the one condition where a struggling reader has genuine motive
+      // to inspect the page, and deletion costs the same as fading.
+      const { fadeAfterMs, staggerMs } = config.vanishing;
+      return {
+        condition,
+        render: { ...CLEAN_RENDER },
+        tokens: tokens.map((t, i) => ({ ...t, expiresInMs: fadeAfterMs + i * staggerMs })),
       };
     }
 

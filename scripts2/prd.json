@@ -47,7 +47,7 @@
       "id": "S5",
       "issue": 28,
       "title": "Condition: The Vanishing",
-      "passes": false,
+      "passes": true,
       "afk": true,
       "depends": [
         "S1"

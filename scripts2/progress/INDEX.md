@@ -8,7 +8,7 @@ Graph: `scripts2/prd.json` · Branch: `sprint/soup-mvp` · Parent: #1
 | S2  | #25 | Connect hosting: Netlify site and Fly app | **no** | pending — human gate |
 | S3  | #26 | Condition: Fog | yes | **shipped** — [S3.md](S3.md) |
 | S4  | #27 | Condition: Slippery Floor | yes | **shipped** — [S4.md](S4.md) |
-| S5  | #28 | Condition: The Vanishing | yes | pending |
+| S5  | #28 | Condition: The Vanishing | yes | **shipped** — [S5.md](S5.md) |
 | S6  | #29 | Condition: Mudsound and the grapheme engine | yes | pending |
 | S7  | #30 | Condition: Butterfingers (solo form) | yes | pending |
 | S8  | #31 | Passage library: 20 passages and 10 dictation prompts | yes | pending |

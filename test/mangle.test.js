@@ -133,3 +133,44 @@ describe("Slippery Floor", () => {
     );
   });
 });
+
+describe("The Vanishing", () => {
+  const van = (cfg = CONFIG, opts = {}) =>
+    mangle(PASSAGES[0].text, CONDITIONS.VANISHING, cfg, { seed: 3, ...opts });
+
+  test("every token carries an expiry", () => {
+    expect(van().tokens.every((t) => typeof t.expiresInMs === "number")).toBe(true);
+  });
+
+  test("expiry staggers forward, so the vanishing trails the reader", () => {
+    const t = van().tokens;
+    expect(t[5].expiresInMs).toBeGreaterThan(t[0].expiresInMs);
+    expect(t[20].expiresInMs).toBeGreaterThan(t[5].expiresInMs);
+  });
+
+  test("the first word survives long enough to be read", () => {
+    expect(van().tokens[0].expiresInMs).toBeGreaterThanOrEqual(CONFIG.vanishing.fadeAfterMs);
+  });
+
+  test("expiry is an instruction to remove, never an opacity", () => {
+    const serialised = JSON.stringify(van());
+    expect(serialised).not.toContain("opacity");
+    expect(serialised).not.toContain("visibility");
+  });
+
+  test("fade delay and stagger are tuning constants", () => {
+    const slow = structuredClone(CONFIG);
+    slow.vanishing.fadeAfterMs = 9000;
+    expect(van(slow).tokens[0].expiresInMs).toBe(9000);
+  });
+
+  test("Chunk it removes every expiry and groups the passage", () => {
+    const out = van(CONFIG, { accommodated: true });
+    expect(out.tokens.every((t) => t.expiresInMs === undefined)).toBe(true);
+    expect(out.render.chunkSize).toBeGreaterThan(0);
+  });
+
+  test("the words themselves are untouched", () => {
+    expect(renderedText(van())).toBe(PASSAGES[0].text);
+  });
+});

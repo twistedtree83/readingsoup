@@ -51,15 +51,22 @@ function landing() {
 function reading(view) {
   // Join with a real separator rather than a CSS pseudo-element, so what the
   // DOM says matches what the eye sees — copy/paste and assistive tech included.
-  const tokens = view.tokens
-    .map((t) => {
-      const shifted = t.offsetY || t.rotate;
-      const style = shifted
-        ? ` style="transform:translateY(${t.offsetY || 0}px) rotate(${t.rotate || 0}deg)"`
-        : "";
-      return `<span class="tok"${style}>${escapeHtml(t.text)}</span>`;
-    })
-    .join(view.render.wordGaps ? " " : "");
+  const span = (t) => {
+    const shifted = t.offsetY || t.rotate;
+    const style = shifted
+      ? ` style="transform:translateY(${t.offsetY || 0}px) rotate(${t.rotate || 0}deg)"`
+      : "";
+    return `<span class="tok" data-id="${t.id}"${style}>${escapeHtml(t.text)}</span>`;
+  };
+  const sep = view.render.wordGaps ? " " : "";
+
+  // Chunk it delivers the passage in stable pieces rather than one block.
+  const size = view.render.chunkSize;
+  const tokens = size
+    ? Array.from({ length: Math.ceil(view.tokens.length / size) }, (_, c) =>
+        `<span class="chunk">${view.tokens.slice(c * size, c * size + size).map(span).join(sep)}</span>`
+      ).join("")
+    : view.tokens.map(span).join(sep);
 
   const node = el(`
     <div>
@@ -97,6 +104,22 @@ function catalogue(view) {
   `);
 }
 
+// The Vanishing: the server (here, the core) says when each word expires; the
+// client removes the node. Never opacity — the word has to actually be gone.
+let expiryTimers = [];
+
+function scheduleExpiries(view) {
+  expiryTimers.forEach(clearTimeout);
+  expiryTimers = [];
+  if (!view.tokens) return;
+  for (const t of view.tokens) {
+    if (typeof t.expiresInMs !== "number") continue;
+    expiryTimers.push(
+      setTimeout(() => app.querySelector(`.tok[data-id="${t.id}"]`)?.remove(), t.expiresInMs)
+    );
+  }
+}
+
 function render() {
   const view = viewFor(state, ME);
   app.replaceChildren(
@@ -104,6 +127,7 @@ function render() {
     view.phase === "catalogue" ? catalogue(view) :
     reading(view)
   );
+  scheduleExpiries(view);
 }
 
 function escapeHtml(s) {

@@ -107,6 +107,7 @@ html, body {
   word-break: break-word;
 }
 .passage .tok { display: inline-block; }
+.passage .chunk { display: block; margin-bottom: 0.35em; }
 
 /* --- the hand ---------------------------------------------------------- */
 

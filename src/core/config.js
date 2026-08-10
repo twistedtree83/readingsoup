@@ -25,6 +25,14 @@ export const CONFIG = {
     tokensPerBand: 5,
     drift: false,
   },
+  vanishing: {
+    // Each word expires on a stagger, so the vanishing trails just behind a
+    // reader moving at the target pace and overtakes one moving slower. That
+    // overtaking is the point.
+    fadeAfterMs: 2600,
+    staggerMs: 520,
+    chunkSize: 6,
+  },
   round: {
     watchWindowMs: 25_000,
     playsPerRound: 3,
