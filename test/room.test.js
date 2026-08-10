@@ -127,3 +127,31 @@ describe("a live room is never destroyed by arrival", () => {
     expect(viewFor(s, "host-1").headcount).toBe(2);
   });
 })
+
+describe("the headcount is honest", () => {
+  test("it counts who is actually in the room, not who has ever joined", () => {
+    // The facilitator reads this number when deciding to start, and the PRD
+    // selects solo/small/group mode from participant count. Someone who left
+    // permanently must not inflate it into the wrong mode.
+    let s = join(join(open(), "p1", "Priya"), "p2", "Marcus", "observer");
+    expect(viewFor(s, "host-1").headcount).toBe(2);
+
+    s = reduce(s, { type: "DISCONNECT", token: "p2", at: 5 }, CONFIG).state;
+    expect(viewFor(s, "host-1").headcount).toBe(1);
+  });
+
+  test("but the roster still shows everyone, so a locked phone keeps its place", () => {
+    let s = join(join(open(), "p1", "Priya"), "p2", "Marcus", "observer");
+    s = reduce(s, { type: "DISCONNECT", token: "p2", at: 5 }, CONFIG).state;
+    const roster = viewFor(s, "host-1").roster;
+    expect(roster.map((r) => r.name)).toEqual(["Priya", "Marcus"]);
+    expect(roster.find((r) => r.name === "Marcus").connected).toBe(false);
+  });
+
+  test("the count is still a single total, never split by role", () => {
+    const s = join(join(open(), "p1", "Priya"), "p2", "Marcus", "observer");
+    const v = viewFor(s, "host-1");
+    expect(JSON.stringify(v)).not.toContain("observer");
+    expect(v.headcount).toBe(2);
+  });
+});

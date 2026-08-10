@@ -20,7 +20,7 @@ import {
 export function viewFor(state, participantId) {
   const me = state.participants?.[participantId];
 
-  if (me?.role === ROLES.HOST) return hostView(state, me);
+  if (me?.role === ROLES.HOST) return hostView(state);
   if (state.phase === "lobby") {
     return {
       phase: "lobby",
@@ -113,6 +113,10 @@ function hostView(state) {
     role: ROLES.HOST,
     roomCode: state.roomCode,
     roster,
-    headcount: roster.length,
+    // Who is actually here, not who has ever been. This is the number the
+    // facilitator reads when deciding to start, and the number PRD mode
+    // selection keys off — someone who left permanently must not inflate a
+    // small session into group mode. Still a single total, never split by role.
+    headcount: roster.filter((r) => r.connected).length,
   };
 }

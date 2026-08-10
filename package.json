@@ -11,7 +11,8 @@
     "check:purity": "bun run scripts2/check-purity.js",
     "check:privacy": "bun test test/privacy.test.js",
     "sim": "bun run scripts/sim.js",
-    "static": "bun run scripts/static.js"
+    "static": "bun run scripts/static.js",
+    "build": "bash scripts/build-static.sh"
   },
   "dependencies": {
     "qrcode-svg": "^1.1.0",

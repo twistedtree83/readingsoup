@@ -44,6 +44,10 @@ function dispatch(event) {
   const { state: next, effects } = reduce(state, { ...event, at: Date.now() }, CONFIG);
   state = next;
   broadcast();
+  // Effects are emitted by the core as data and performed here. Nothing uses
+  // them yet, but dropping them silently would leave the round slices (S12+)
+  // inheriting a shell that looks wired and is not.
+  for (const effect of effects) io.emit("effect", effect);
   return effects;
 }
 

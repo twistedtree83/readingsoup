@@ -59,9 +59,35 @@ function render(view) {
   stage.replaceChildren(node);
 }
 
-const transport = await socketTransport({
-  intent: "host",
-  onIdentity: (id) => { identity = id ?? {}; },
-  onView: render,
-});
-transport.start();
+function offline() {
+  // The static deploy has no game server, and the PRD requires the site to work
+  // completely without one. A blank projector is the worst possible failure, so
+  // say plainly what is missing and point at the half that does work.
+  stage.replaceChildren(
+    el(`
+      <section class="slide slide-offline">
+        <div class="lobby-left">
+          <p class="host-eyebrow">SOUP</p>
+          <div>
+            <p class="host-join">The facilitator screen needs the game server.</p>
+            <p class="host-note">Running a session takes the realtime server. The
+              solo tour needs nothing at all — it runs entirely in the browser.</p>
+          </div>
+          <a class="host-link" href="/">Take the tour instead</a>
+        </div>
+      </section>
+    `)
+  );
+}
+
+try {
+  const transport = await socketTransport({
+    intent: "host",
+    onIdentity: (id) => { identity = id ?? {}; },
+    onView: render,
+    onError: offline,
+  });
+  transport.start();
+} catch {
+  offline();
+}
