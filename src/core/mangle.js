@@ -5,6 +5,7 @@
 
 import { CONDITIONS, IMPLEMENTED } from "./conditions.js";
 import { rng } from "./random.js";
+import { substitute } from "./graphemes.js";
 
 const CLEAN_RENDER = {
   wordGaps: true,
@@ -79,6 +80,14 @@ export function mangle(passage, condition, config, opts = {}) {
         tokens: tokens.map((t, i) => ({ ...t, expiresInMs: fadeAfterMs + i * staggerMs })),
       };
     }
+
+    case CONDITIONS.MUDSOUND:
+      // A decoding barrier, not a spacing one: gaps stay, the graphemes change.
+      return {
+        condition,
+        render: { ...CLEAN_RENDER },
+        tokens: substitute(tokens, opts.seed ?? 1, config),
+      };
 
     case CONDITIONS.FOG:
       // The words are all there. You just cannot see them.

@@ -33,6 +33,12 @@ export const CONFIG = {
     staggerMs: 520,
     chunkSize: 6,
   },
+  mudsound: {
+    // Proportion of the rule table in play for a given passage. The mapping is
+    // consistent within a passage, so the reader can learn it mid-read and
+    // accelerate — which is what makes the round finishable rather than cruel.
+    density: 0.45,
+  },
   round: {
     watchWindowMs: 25_000,
     playsPerRound: 3,

@@ -174,3 +174,23 @@ describe("The Vanishing", () => {
     expect(renderedText(van())).toBe(PASSAGES[0].text);
   });
 });
+
+describe("Mudsound", () => {
+  const mud = (opts = {}) => mangle(PASSAGES[0].text, CONDITIONS.MUDSOUND, CONFIG, { seed: 3, ...opts });
+
+  test("it transforms the content, so the source is never reconstructed", () => {
+    expect(renderedText(mud())).not.toBe(PASSAGES[0].text);
+  });
+
+  test("output contains only letters and punctuation — never a symbol cipher", () => {
+    for (const t of mud().tokens) expect(t.text).toMatch(/^[A-Za-z.,;:'"()!?-]*$/);
+  });
+
+  test("Read it to them yields the clean passage", () => {
+    expect(renderedText(mud({ accommodated: true }))).toBe(PASSAGES[0].text);
+  });
+
+  test("word gaps are kept — this is a decoding barrier, not a spacing one", () => {
+    expect(mud().render.wordGaps).toBe(true);
+  });
+});

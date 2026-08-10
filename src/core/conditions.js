@@ -45,6 +45,7 @@ export const IMPLEMENTED = [
   CONDITIONS.FOG,
   CONDITIONS.SLIPPERY,
   CONDITIONS.VANISHING,
+  CONDITIONS.MUDSOUND,
 ];
 
 // Conditions that alter the text content itself. For these the rendered text

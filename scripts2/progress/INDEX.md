@@ -9,7 +9,7 @@ Graph: `scripts2/prd.json` · Branch: `sprint/soup-mvp` · Parent: #1
 | S3  | #26 | Condition: Fog | yes | **shipped** — [S3.md](S3.md) |
 | S4  | #27 | Condition: Slippery Floor | yes | **shipped** — [S4.md](S4.md) |
 | S5  | #28 | Condition: The Vanishing | yes | **shipped** — [S5.md](S5.md) |
-| S6  | #29 | Condition: Mudsound and the grapheme engine | yes | pending |
+| S6  | #29 | Condition: Mudsound and the grapheme engine | yes | **shipped** — [S6.md](S6.md) |
 | S7  | #30 | Condition: Butterfingers (solo form) | yes | pending |
 | S8  | #31 | Passage library: 20 passages and 10 dictation prompts | yes | pending |
 | S9  | #32 | Solo tour complete: six conditions and the personal catalogue | yes | pending |
