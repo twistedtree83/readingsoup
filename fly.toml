@@ -19,9 +19,11 @@ primary_region = "syd"
   auto_stop_machines = "stop"
   auto_start_machines = true
   min_machines_running = 0
-  # Socket.IO holds a long-lived connection per participant, so one machine
-  # must serve the whole room: room state is in memory and there is exactly
-  # one room. Never scale this past a single machine.
+  # SINGLE MACHINE ONLY. Room state is in memory and there is exactly one room,
+  # so a second machine would split participants across two different rooms at
+  # random — some people in the lobby the projector can see, some in a room
+  # nobody is running. Fly's first deploy creates a second machine for high
+  # availability by default; deploys must pass --ha=false, and the workflow does.
   processes = ["app"]
 
 [[vm]]
