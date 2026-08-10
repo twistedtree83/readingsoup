@@ -27,7 +27,7 @@ function beginRound(state, condition, config) {
   if (isTyping(condition)) {
     // A typed task: the participant is given a sentence and simply cannot get
     // it out. No target matching, no threshold, no score.
-    const prompt = pickDictation(state.tour.usedPassages);
+    const prompt = pickDictation(state.tour.usedPassages, seedBase);
     return {
       condition,
       fixedBy: FIXES[condition],
@@ -42,7 +42,7 @@ function beginRound(state, condition, config) {
     };
   }
 
-  const passage = pick(bandFor(condition), state.tour.usedPassages);
+  const passage = pick(bandFor(condition), state.tour.usedPassages, seedBase);
   // Seed varies per round so two rounds of the same condition do not land on an
   // identical displacement, but stays derived from the session seed so the whole
   // session replays deterministically in a test.

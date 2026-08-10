@@ -49,13 +49,22 @@ describe("the client never learns the answer", () => {
       CONFIG
     ).state;
 
+    // Checked as object KEYS, not as substrings: a passage may legitimately
+    // contain the word "answering", and that is not a leak.
+    const keysOf = (o, acc = new Set()) => {
+      if (o && typeof o === "object") {
+        for (const [k, val] of Object.entries(o)) { acc.add(k); keysOf(val, acc); }
+      }
+      return acc;
+    };
+
     for (const id of ["p1", "someone-else"]) {
       const v = viewFor(state, id);
-      const serialised = JSON.stringify(v);
+      const keys = keysOf(v);
       // The correct card is necessarily present in a full hand. What must never
       // travel is anything that singles it out.
       for (const tell of ["fixedBy", "correct", "answer", "fixes", "solution"]) {
-        expect(serialised).not.toContain(tell);
+        expect([...keys].some((k) => k.toLowerCase().includes(tell.toLowerCase()))).toBe(false);
       }
       if (v.hand) expect(v.hand.length).toBe(6);
     }

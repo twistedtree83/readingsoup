@@ -77,7 +77,7 @@
       "id": "S8",
       "issue": 31,
       "title": "Passage library: 20 passages and 10 dictation prompts",
-      "passes": false,
+      "passes": true,
       "afk": true,
       "depends": [
         "S1"
