@@ -210,3 +210,64 @@ html, body {
   min-height: 1.4em;
   overflow-wrap: anywhere;
 }
+
+/* --- join and lobby ----------------------------------------------------- */
+
+.namebox {
+  width: 100%;
+  border: 4px solid var(--ink);
+  background: #fff;
+  padding: 18px 20px;
+  margin: 32px 0 0;
+  font-family: var(--font);
+  font-size: 30px;
+  font-weight: 800;
+  color: var(--ink);
+}
+.namebox:focus { outline: 4px solid var(--red); outline-offset: 2px; }
+
+.waiting-cards { display: flex; gap: 12px; justify-content: center; padding-bottom: 20px; }
+.waiting-cards i {
+  width: 88px; height: 126px; border: 4px solid var(--ink); background: var(--blue-tint);
+}
+.waiting-cards i:nth-child(1) { transform: rotate(-6deg); }
+.waiting-cards i:nth-child(2) { transform: rotate(2deg); }
+.waiting-cards i:nth-child(3) { transform: rotate(7deg); }
+
+/* --- the projector ------------------------------------------------------ */
+
+body.host { background: var(--paper); }
+body.host #stage { min-height: 100dvh; }
+
+.slide {
+  min-height: 100dvh;
+  background: var(--paper);
+  color: var(--ink);
+  padding: 5vh 5vw;
+  display: flex;
+  gap: 5vw;
+  align-items: center;
+  justify-content: space-between;
+}
+.lobby-left { display: flex; flex-direction: column; justify-content: space-between; height: 90vh; flex: 1; min-width: 0; }
+.host-eyebrow { font-size: clamp(20px, 2.2vw, 34px); font-weight: 800; color: var(--red); margin: 0; letter-spacing: 0.04em; }
+.host-join { font-size: clamp(24px, 3.2vw, 52px); font-weight: 800; margin: 0; }
+.host-code {
+  font-size: clamp(110px, 17vw, 280px);
+  font-weight: 900; letter-spacing: -0.05em; line-height: 0.85; margin: 0;
+}
+.host-count { font-size: clamp(22px, 2.7vw, 44px); font-weight: 800; margin: 0; }
+.qr { background: var(--paper); border: 10px solid var(--ink); padding: 18px; line-height: 0; }
+.qr img { display: block; width: clamp(200px, 24vw, 380px); height: auto; }
+
+.roster { list-style: none; display: flex; flex-wrap: wrap; gap: 10px 14px; padding: 0; margin: 24px 0 0; }
+.roster-name {
+  font-size: clamp(18px, 1.9vw, 32px); font-weight: 800; letter-spacing: -0.02em;
+  border: 3px solid var(--ink); padding: 6px 12px;
+}
+.roster-name.away { opacity: 0.45; }
+
+@media (max-width: 900px) {
+  .slide { flex-direction: column; align-items: flex-start; gap: 4vh; }
+  .lobby-left { height: auto; gap: 4vh; }
+}

@@ -13,6 +13,8 @@ import { BANDS } from "./passages.js";
 
 const SHORT_BAND_CONDITIONS = [CONDITIONS.SOUP, CONDITIONS.MUDSOUND];
 
+export const ROLES = { HOST: "host", PARTICIPANT: "participant", OBSERVER: "observer" };
+
 export function initialState() {
   return { mode: null, phase: "landing", participants: {}, round: null, tour: null };
 }
@@ -91,6 +93,73 @@ export function reduce(state, event, config) {
         ? intended
         : mangleTyped(intended, config, state.round.seed);
       return { state: { ...state, round: { ...state.round, intended, output } }, effects };
+    }
+
+    case "OPEN_ROOM": {
+      // One room at a time. The host is a participant with the host role, so
+      // identity works the same way for everyone — including across a refresh.
+      return {
+        state: {
+          ...state,
+          phase: "lobby",
+          mode: null,
+          roomCode: String(event.roomCode),
+          hostToken: event.token,
+          seed: event.seed ?? 1,
+          participants: {
+            [event.token]: { token: event.token, role: ROLES.HOST, connected: true, order: 0 },
+          },
+        },
+        effects,
+      };
+    }
+
+    case "JOIN": {
+      if (!event.token) return { state, effects };
+      const existing = state.participants[event.token];
+      const role = event.role === ROLES.OBSERVER ? ROLES.OBSERVER : ROLES.PARTICIPANT;
+      return {
+        state: {
+          ...state,
+          participants: {
+            ...state.participants,
+            [event.token]: {
+              token: event.token,
+              name: String(event.name ?? "").trim() || "Someone",
+              role,
+              connected: true,
+              order: existing?.order ?? Object.keys(state.participants).length,
+            },
+          },
+        },
+        effects,
+      };
+    }
+
+    case "RECONNECT": {
+      const who = state.participants[event.token];
+      if (!who) return { state, effects };
+      return {
+        state: {
+          ...state,
+          participants: { ...state.participants, [event.token]: { ...who, connected: true } },
+        },
+        effects,
+      };
+    }
+
+    case "DISCONNECT": {
+      const who = state.participants[event.token];
+      if (!who) return { state, effects };
+      // Never removed. Phones lock during every round; the participant is still
+      // in the room even when their socket is not.
+      return {
+        state: {
+          ...state,
+          participants: { ...state.participants, [event.token]: { ...who, connected: false } },
+        },
+        effects,
+      };
     }
 
     case "PLAY_CARD": {

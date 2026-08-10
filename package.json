@@ -5,11 +5,19 @@
   "type": "module",
   "description": "A live accessibility simulation for staff professional development",
   "scripts": {
-    "dev": "bun run scripts/static.js",
+    "dev": "bun run src/server/index.js",
     "test": "bun test",
     "verify": "bun test && bun run check:purity && bun run check:privacy",
     "check:purity": "bun run scripts2/check-purity.js",
     "check:privacy": "bun test test/privacy.test.js",
-    "sim": "bun run scripts/sim.js"
+    "sim": "bun run scripts/sim.js",
+    "static": "bun run scripts/static.js"
+  },
+  "dependencies": {
+    "qrcode-svg": "^1.1.0",
+    "socket.io": "^4.8.3"
+  },
+  "devDependencies": {
+    "socket.io-client": "^4.8.3"
   }
 }

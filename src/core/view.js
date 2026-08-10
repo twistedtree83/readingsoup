@@ -8,6 +8,7 @@
 //   3. No timing, score or ranking field exists to leak.
 
 import { fullDeck } from "./deck.js";
+import { ROLES } from "./session.js";
 import {
   CARD_LABELS,
   CONDITION_LABELS,
@@ -17,6 +18,20 @@ import {
 } from "./conditions.js";
 
 export function viewFor(state, participantId) {
+  const me = state.participants?.[participantId];
+
+  if (me?.role === ROLES.HOST) return hostView(state, me);
+  if (state.phase === "lobby") {
+    return {
+      phase: "lobby",
+      mode: state.mode,
+      role: me?.role ?? "spectator",
+      name: me?.name,
+      roomCode: state.roomCode,
+      joined: Boolean(me),
+    };
+  }
+
   const base = {
     phase: state.phase,
     mode: state.mode,
@@ -77,5 +92,27 @@ export function viewFor(state, participantId) {
     accommodated: state.round.accommodated,
     hand: fullDeck(),
     cardLabels: CARD_LABELS,
+  };
+}
+
+// The projector view. Deliberately thin: a room code, a headcount, and names.
+//
+// THE ROSTER CARRIES NAMES ONLY. No roles, no counts split by role, nothing
+// derived from who chose to observe. This screen is shown to the entire room at
+// once, so anything role-shaped on it would disclose an opt-out to everybody
+// simultaneously — the exact thing the observer role exists to prevent.
+function hostView(state) {
+  const roster = Object.values(state.participants)
+    .filter((p) => p.role !== ROLES.HOST)
+    .sort((a, b) => a.order - b.order)
+    .map((p) => ({ name: p.name, connected: p.connected }));
+
+  return {
+    phase: state.phase,
+    mode: state.mode,
+    role: ROLES.HOST,
+    roomCode: state.roomCode,
+    roster,
+    headcount: roster.length,
   };
 }

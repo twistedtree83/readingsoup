@@ -101,7 +101,7 @@
       "id": "S10",
       "issue": 33,
       "title": "Rooms and join: three roles, token identity, roster, QR",
-      "passes": false,
+      "passes": true,
       "afk": true,
       "depends": [
         "S1"
