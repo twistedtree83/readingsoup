@@ -40,7 +40,7 @@ export const CARD_LABELS = {
 
 // Conditions with a working mangle implementation. Later slices extend this;
 // the tour and the tests both read from it, so adding a condition is one edit.
-export const IMPLEMENTED = [CONDITIONS.SOUP, CONDITIONS.FOG];
+export const IMPLEMENTED = [CONDITIONS.SOUP, CONDITIONS.FOG, CONDITIONS.SLIPPERY];
 
 // Conditions that alter the text content itself. For these the rendered text
 // must never reconstruct the source. The rest are presentational: the words are

@@ -15,8 +15,14 @@ const app = document.getElementById("app");
 
 let state = initialState();
 
+const REDUCED_MOTION = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
 function send(event) {
-  const result = reduce(state, { ...event, participantId: ME, at: performance.now() }, config);
+  const result = reduce(
+    state,
+    { ...event, participantId: ME, at: performance.now(), reducedMotion: REDUCED_MOTION },
+    config
+  );
   state = result.state;
   render();
 }
@@ -38,7 +44,7 @@ function landing() {
       <p class="note">No sign-in, nothing saved, nothing timed.</p>
     </div>
   `);
-  node.querySelector('[data-act="solo"]').addEventListener("click", () => send({ type: "START_SOLO" }));
+  node.querySelector('[data-act="solo"]').addEventListener("click", () => send({ type: "START_SOLO", seed: Math.floor(Math.random() * 1e9) }));
   return node;
 }
 
@@ -46,7 +52,13 @@ function reading(view) {
   // Join with a real separator rather than a CSS pseudo-element, so what the
   // DOM says matches what the eye sees — copy/paste and assistive tech included.
   const tokens = view.tokens
-    .map((t) => `<span class="tok">${escapeHtml(t.text)}</span>`)
+    .map((t) => {
+      const shifted = t.offsetY || t.rotate;
+      const style = shifted
+        ? ` style="transform:translateY(${t.offsetY || 0}px) rotate(${t.rotate || 0}deg)"`
+        : "";
+      return `<span class="tok"${style}>${escapeHtml(t.text)}</span>`;
+    })
     .join(view.render.wordGaps ? " " : "");
 
   const node = el(`

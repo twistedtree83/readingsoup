@@ -37,7 +37,7 @@
       "id": "S4",
       "issue": 27,
       "title": "Condition: Slippery Floor",
-      "passes": false,
+      "passes": true,
       "afk": true,
       "depends": [
         "S1"

@@ -70,11 +70,66 @@ describe("the content/presentation split", () => {
     }
   });
 
-  test("every implemented condition renders differently from clean", () => {
+  test("every implemented condition produces output differing from clean", () => {
+    // The barrier may live on the render mode (Fog, Soup) or on the tokens
+    // (Slippery Floor, The Vanishing). Either counts; neither being different
+    // would mean the condition does nothing.
     for (const c of IMPLEMENTED) {
-      const barrier = mangle(PASSAGES[0].text, c, CONFIG);
-      const clean = mangle(PASSAGES[0].text, c, CONFIG, { accommodated: true });
-      expect(JSON.stringify(barrier.render)).not.toBe(JSON.stringify(clean.render));
+      const barrier = mangle(PASSAGES[0].text, c, CONFIG, { seed: 5 });
+      const clean = mangle(PASSAGES[0].text, c, CONFIG, { seed: 5, accommodated: true });
+      expect(JSON.stringify(barrier)).not.toBe(JSON.stringify(clean));
     }
+  });
+});
+
+describe("Slippery Floor", () => {
+  const slip = (cfg = CONFIG, opts = {}) =>
+    mangle(PASSAGES[0].text, CONDITIONS.SLIPPERY, cfg, { seed: 5, ...opts });
+
+  test("displaces tokens vertically and rotates them slightly", () => {
+    const out = slip();
+    expect(out.tokens.every((t) => typeof t.offsetY === "number")).toBe(true);
+    expect(out.tokens.some((t) => t.offsetY !== 0)).toBe(true);
+    expect(out.tokens.every((t) => Math.abs(t.rotate) <= CONFIG.slippery.rotateDeg)).toBe(true);
+  });
+
+  test("offsets are banded, so text sits in displaced bands rather than jittering per word", () => {
+    const out = slip();
+    const band = CONFIG.slippery.tokensPerBand;
+    expect(out.tokens[0].offsetY).toBe(out.tokens[band - 1].offsetY);
+    const distinct = new Set(out.tokens.map((t) => t.offsetY));
+    expect(distinct.size).toBeGreaterThan(1);
+  });
+
+  test("offsets are computed once and are deterministic for a seed", () => {
+    expect(slip().tokens.map((t) => t.offsetY)).toEqual(slip().tokens.map((t) => t.offsetY));
+  });
+
+  test("no animation is emitted by default", () => {
+    expect(slip().render.drift).toBe(false);
+  });
+
+  test("no animation is emitted under reduced motion, even if drift is configured on", () => {
+    const drifting = structuredClone(CONFIG);
+    drifting.slippery.drift = true;
+    expect(slip(drifting).render.drift).toBe(true);
+    expect(slip(drifting, { reducedMotion: true }).render.drift).toBe(false);
+  });
+
+  test("the words are untouched", () => {
+    expect(renderedText(slip())).toBe(PASSAGES[0].text);
+  });
+
+  test("Line guide stabilises the baseline", () => {
+    const out = mangle(PASSAGES[0].text, CONDITIONS.SLIPPERY, CONFIG, { seed: 5, accommodated: true });
+    expect(out.tokens.every((t) => !t.offsetY && !t.rotate)).toBe(true);
+  });
+
+  test("amplitude and rotation are tuning constants", () => {
+    const big = structuredClone(CONFIG);
+    big.slippery.offsetPx = 40;
+    expect(Math.max(...slip(big).tokens.map((t) => Math.abs(t.offsetY)))).toBeGreaterThan(
+      Math.max(...slip().tokens.map((t) => Math.abs(t.offsetY)))
+    );
   });
 });

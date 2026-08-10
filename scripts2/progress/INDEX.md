@@ -7,7 +7,7 @@ Graph: `scripts2/prd.json` · Branch: `sprint/soup-mvp` · Parent: #1
 | S1  | #24 | Walking skeleton: solo mode, Soup, end to end | yes | **shipped** — [S1.md](S1.md) |
 | S2  | #25 | Connect hosting: Netlify site and Fly app | **no** | pending — human gate |
 | S3  | #26 | Condition: Fog | yes | **shipped** — [S3.md](S3.md) |
-| S4  | #27 | Condition: Slippery Floor | yes | pending |
+| S4  | #27 | Condition: Slippery Floor | yes | **shipped** — [S4.md](S4.md) |
 | S5  | #28 | Condition: The Vanishing | yes | pending |
 | S6  | #29 | Condition: Mudsound and the grapheme engine | yes | pending |
 | S7  | #30 | Condition: Butterfingers (solo form) | yes | pending |

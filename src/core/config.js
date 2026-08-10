@@ -15,6 +15,16 @@ export const CONFIG = {
     // 1 = full contrast. Low enough to force straining, high enough to finish.
     contrast: 0.09,
   },
+  slippery: {
+    // Static by default. Continuous motion is a vestibular hazard and there is
+    // no way to ask about motion sensitivity on a join screen without outing
+    // people. Fixed offsets already destroy the return sweep to the left
+    // margin, which is the actual mechanic.
+    offsetPx: 9,
+    rotateDeg: 0.7,
+    tokensPerBand: 5,
+    drift: false,
+  },
   round: {
     watchWindowMs: 25_000,
     playsPerRound: 3,

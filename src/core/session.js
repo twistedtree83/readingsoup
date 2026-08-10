@@ -22,12 +22,20 @@ function bandFor(condition) {
 
 function beginRound(state, condition, config) {
   const passage = pick(bandFor(condition), state.tour.usedPassages);
+  // Seed varies per round so two rounds of the same condition do not land on an
+  // identical displacement, but stays derived from the session seed so the whole
+  // session replays deterministically in a test.
+  const seed = (state.seed ?? 1) + state.tour.index * 101;
   return {
     condition,
     fixedBy: FIXES[condition],
     passageId: passage.id,
+    seed,
     accommodated: false,
-    rendered: mangle(passage.text, condition, config),
+    rendered: mangle(passage.text, condition, config, {
+      seed,
+      reducedMotion: state.reducedMotion === true,
+    }),
   };
 }
 
@@ -42,6 +50,8 @@ export function reduce(state, event, config) {
         ...state,
         mode: "solo",
         phase: "reading",
+        seed: event.seed ?? 1,
+        reducedMotion: event.reducedMotion === true,
         participants: { [event.participantId]: { id: event.participantId, role: "participant" } },
         reader: event.participantId,
         tour,
@@ -63,12 +73,11 @@ export function reduce(state, event, config) {
         round: {
           ...state.round,
           accommodated: true,
-          rendered: mangle(
-            lookupText(passage),
-            state.round.condition,
-            config,
-            { accommodated: true }
-          ),
+          rendered: mangle(lookupText(passage), state.round.condition, config, {
+            seed: state.round.seed,
+            reducedMotion: state.reducedMotion === true,
+            accommodated: true,
+          }),
         },
       };
       effects.push({ type: "ACCOMMODATED", condition: state.round.condition, card: event.card });

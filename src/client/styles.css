@@ -106,7 +106,7 @@ html, body {
   overflow-wrap: break-word;
   word-break: break-word;
 }
-.passage .tok { display: inline; }
+.passage .tok { display: inline-block; }
 
 /* --- the hand ---------------------------------------------------------- */
 
