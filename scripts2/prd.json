@@ -111,7 +111,7 @@
       "id": "S11",
       "issue": 34,
       "title": "Sim harness: headless N-participant sessions",
-      "passes": false,
+      "passes": true,
       "afk": true,
       "depends": [
         "S10"
