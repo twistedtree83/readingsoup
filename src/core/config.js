@@ -39,6 +39,13 @@ export const CONFIG = {
     // accelerate — which is what makes the round finishable rather than cruel.
     density: 0.45,
   },
+  butterfingers: {
+    // Roughly a fifth of keystrokes lost, plus adjacent transposition. There is
+    // no target matching and no threshold: at this rate an accurate match is
+    // unachievable, and any threshold is a scoring system in disguise.
+    dropRate: 0.2,
+    transposeRate: 0.12,
+  },
   round: {
     watchWindowMs: 25_000,
     playsPerRound: 3,

@@ -27,6 +27,20 @@ export function viewFor(state, participantId) {
     return { ...base, watching: true };
   }
 
+  if (state.round.kind === "typing") {
+    return {
+      ...base,
+      reader: true,
+      kind: "typing",
+      prompt: state.round.promptText,
+      intended: state.round.intended,
+      output: state.round.output,
+      accommodated: state.round.accommodated,
+      hand: fullDeck(),
+      cardLabels: CARD_LABELS,
+    };
+  }
+
   return {
     ...base,
     reader: true,

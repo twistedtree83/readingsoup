@@ -1,10 +1,16 @@
 import { test, expect, describe } from "bun:test";
 import { mangle, renderedText } from "../src/core/mangle.js";
-import { CONDITIONS, IMPLEMENTED, CONTENT_TRANSFORMING } from "../src/core/conditions.js";
+import { CONDITIONS, IMPLEMENTED, CONTENT_TRANSFORMING, isTyping } from "../src/core/conditions.js";
 import { PASSAGES } from "../src/core/passages.js";
 import { CONFIG } from "../src/core/config.js";
 
 describe("mangle", () => {
+  test("a typed condition renders no passage at all", () => {
+    const out = mangle(PASSAGES[0].text, CONDITIONS.BUTTERFINGERS, CONFIG);
+    expect(out.tokens).toEqual([]);
+    expect(out.render.mode).toBe("typing");
+  });
+
   test("Soup produces output distinguishable from its input", () => {
     for (const p of PASSAGES) {
       const out = mangle(p.text, CONDITIONS.SOUP, CONFIG);
@@ -74,7 +80,7 @@ describe("the content/presentation split", () => {
     // The barrier may live on the render mode (Fog, Soup) or on the tokens
     // (Slippery Floor, The Vanishing). Either counts; neither being different
     // would mean the condition does nothing.
-    for (const c of IMPLEMENTED) {
+    for (const c of IMPLEMENTED.filter((x) => !isTyping(x))) {
       const barrier = mangle(PASSAGES[0].text, c, CONFIG, { seed: 5 });
       const clean = mangle(PASSAGES[0].text, c, CONFIG, { seed: 5, accommodated: true });
       expect(JSON.stringify(barrier)).not.toBe(JSON.stringify(clean));

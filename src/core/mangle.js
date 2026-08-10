@@ -3,7 +3,7 @@
 // Returns render instructions, never a directive the client could use to
 // reconstruct anything. The client is dumb: it renders what it is given.
 
-import { CONDITIONS, IMPLEMENTED } from "./conditions.js";
+import { CONDITIONS, IMPLEMENTED, isTyping } from "./conditions.js";
 import { rng } from "./random.js";
 import { substitute } from "./graphemes.js";
 
@@ -25,6 +25,11 @@ function tokenise(passage) {
 export function mangle(passage, condition, config, opts = {}) {
   if (!IMPLEMENTED.includes(condition)) {
     throw new Error(`mangle: condition "${condition}" is not implemented yet`);
+  }
+
+  // A typed task has no rendered passage to mangle.
+  if (isTyping(condition)) {
+    return { condition, render: { ...CLEAN_RENDER, mode: "typing" }, tokens: [] };
   }
 
   const tokens = tokenise(passage);

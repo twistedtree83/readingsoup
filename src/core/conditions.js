@@ -46,7 +46,14 @@ export const IMPLEMENTED = [
   CONDITIONS.SLIPPERY,
   CONDITIONS.VANISHING,
   CONDITIONS.MUDSOUND,
+  CONDITIONS.BUTTERFINGERS,
 ];
+
+// Butterfingers is a typed task, not a rendered passage. Its barrier lives in
+// the input pipeline rather than in the render, so it takes a different path
+// through the reducer and is exempt from the render-differs-from-clean rule.
+export const TYPING = [CONDITIONS.BUTTERFINGERS];
+export const isTyping = (condition) => TYPING.includes(condition);
 
 // Conditions that alter the text content itself. For these the rendered text
 // must never reconstruct the source. The rest are presentational: the words are

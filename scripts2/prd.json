@@ -67,7 +67,7 @@
       "id": "S7",
       "issue": 30,
       "title": "Condition: Butterfingers (solo form)",
-      "passes": false,
+      "passes": true,
       "afk": true,
       "depends": [
         "S1"

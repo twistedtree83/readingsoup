@@ -48,6 +48,34 @@ function landing() {
   return node;
 }
 
+function typing(view) {
+  const node = el(`
+    <div>
+      <p class="eyebrow">Type this out</p>
+      <div class="prompt">${escapeHtml(view.prompt)}</div>
+      <input class="typebox" type="text" autocomplete="off" autocapitalize="off"
+             autocorrect="off" spellcheck="false" aria-label="Type the sentence">
+      <p class="note">What is actually coming out:</p>
+      <div class="output">${escapeHtml(view.output) || "&nbsp;"}</div>
+      ${view.accommodated ? `<p class="helped">A colleague is typing for you now.</p>` : ""}
+      <div class="hand">
+        ${view.hand.map((c) => `<button class="card" data-card="${c}">${escapeHtml(CARD_LABELS[c])}</button>`).join("")}
+      </div>
+      <div class="spacer"></div>
+      <button class="btn btn-secondary" data-act="done">I've finished</button>
+    </div>
+  `);
+
+  const box = node.querySelector(".typebox");
+  box.value = view.intended;
+  box.addEventListener("input", () => send({ type: "TYPE", intended: box.value }));
+  node.querySelectorAll(".card").forEach((btn) =>
+    btn.addEventListener("click", () => send({ type: "PLAY_CARD", card: btn.dataset.card }))
+  );
+  node.querySelector('[data-act="done"]').addEventListener("click", () => send({ type: "DONE" }));
+  return node;
+}
+
 function reading(view) {
   // Join with a real separator rather than a CSS pseudo-element, so what the
   // DOM says matches what the eye sees — copy/paste and assistive tech included.
@@ -125,9 +153,15 @@ function render() {
   app.replaceChildren(
     view.phase === "landing" ? landing() :
     view.phase === "catalogue" ? catalogue(view) :
+    view.kind === "typing" ? typing(view) :
     reading(view)
   );
   scheduleExpiries(view);
+  const box = app.querySelector(".typebox");
+  if (box) {
+    box.focus();
+    box.setSelectionRange(box.value.length, box.value.length);
+  }
 }
 
 function escapeHtml(s) {

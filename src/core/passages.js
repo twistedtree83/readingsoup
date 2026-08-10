@@ -30,6 +30,20 @@ export const PASSAGES = [
   },
 ];
 
+// Butterfingers needs a different shape: short enough to type, long enough to
+// be maddening.
+export const DICTATION = [
+  { id: "d-permit", text: "The wombat requires a permit before crossing." },
+  { id: "d-kettle", text: "The kettle has begun using my full name." },
+  { id: "d-bay", text: "Bay eleven does not exist. Carry on as before." },
+  { id: "d-screws", text: "There are no medium screws in this house." },
+];
+
+export function pickDictation(used = []) {
+  const unused = DICTATION.filter((d) => !used.includes(d.id));
+  return (unused.length ? unused : DICTATION)[0];
+}
+
 export function pick(band, used = []) {
   const unused = PASSAGES.filter((p) => !used.includes(p.id));
   const pool = unused.length ? unused : PASSAGES;

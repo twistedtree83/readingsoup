@@ -4,10 +4,11 @@
 // a twenty-person session run deterministically in a unit test. Effects are
 // emitted as data and performed by the shell.
 
-import { CONDITIONS, FIXES, IMPLEMENTED } from "./conditions.js";
-import { pick } from "./passages.js";
+import { CONDITIONS, FIXES, IMPLEMENTED, isTyping } from "./conditions.js";
+import { pick, pickDictation } from "./passages.js";
 import { resolve } from "./deck.js";
 import { mangle } from "./mangle.js";
+import { mangleTyped } from "./butterfingers.js";
 import { BANDS } from "./passages.js";
 
 const SHORT_BAND_CONDITIONS = [CONDITIONS.SOUP, CONDITIONS.MUDSOUND];
@@ -21,11 +22,31 @@ function bandFor(condition) {
 }
 
 function beginRound(state, condition, config) {
+  const seedBase = (state.seed ?? 1) + state.tour.index * 101;
+
+  if (isTyping(condition)) {
+    // A typed task: the participant is given a sentence and simply cannot get
+    // it out. No target matching, no threshold, no score.
+    const prompt = pickDictation(state.tour.usedPassages);
+    return {
+      condition,
+      fixedBy: FIXES[condition],
+      kind: "typing",
+      passageId: prompt.id,
+      promptText: prompt.text,
+      seed: seedBase,
+      intended: "",
+      output: "",
+      accommodated: false,
+      rendered: mangle("", condition, config, { seed: seedBase }),
+    };
+  }
+
   const passage = pick(bandFor(condition), state.tour.usedPassages);
   // Seed varies per round so two rounds of the same condition do not land on an
   // identical displacement, but stays derived from the session seed so the whole
   // session replays deterministically in a test.
-  const seed = (state.seed ?? 1) + state.tour.index * 101;
+  const seed = seedBase;
   return {
     condition,
     fixedBy: FIXES[condition],
@@ -61,11 +82,32 @@ export function reduce(state, event, config) {
       return { state: next, effects };
     }
 
+    case "TYPE": {
+      if (!state.round || state.round.kind !== "typing") return { state, effects };
+      const intended = String(event.intended ?? "");
+      // Give them a scribe: a colleague types for you, so the input comes out
+      // clean. In solo that is simply the mangling stopping.
+      const output = state.round.accommodated
+        ? intended
+        : mangleTyped(intended, config, state.round.seed);
+      return { state: { ...state, round: { ...state.round, intended, output } }, effects };
+    }
+
     case "PLAY_CARD": {
       if (!state.round || state.round.accommodated) return { state, effects };
       if (!resolve(event.card, state.round.condition)) {
         // Wrong card does nothing. Unlimited attempts in solo, no penalty.
         return { state, effects };
+      }
+      if (state.round.kind === "typing") {
+        effects.push({ type: "ACCOMMODATED", condition: state.round.condition, card: event.card });
+        return {
+          state: {
+            ...state,
+            round: { ...state.round, accommodated: true, output: state.round.intended },
+          },
+          effects,
+        };
       }
       const passage = state.round.passageId;
       const next = {
