@@ -15,5 +15,14 @@ mkdir -p dist/src
 cp -R src/client dist/src/client
 cp -R src/core dist/src/core
 
+# The static site and the game server live on different hosts, so the client has
+# to be told where the server is. Written as a plain script tag rather than
+# bundled in, so there is still no compile stage between source and browser.
+# Empty is fine: the room path then degrades to "that room isn't running", and
+# solo — the journey almost everyone takes — never needed a server at all.
+cat > dist/config.js <<CONFIG
+window.__SOUP_SERVER__ = "${SOUP_SERVER_URL:-}";
+CONFIG
+
 echo "dist/ assembled:"
 find dist -type f | sort | sed 's/^/  /'

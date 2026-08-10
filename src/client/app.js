@@ -220,7 +220,7 @@ async function joinRoom(name, role) {
   app.replaceChildren(el(`<div><p class="eyebrow">Connecting…</p></div>`));
   try {
     transport = await socketTransport({
-      url: params.get("server") ?? "",
+      url: params.get("server") ?? undefined,
       name,
       role,
       onView: render,

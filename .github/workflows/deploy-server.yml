@@ -1,0 +1,35 @@
+name: Deploy realtime server
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/core/**"
+      - "src/server/**"
+      - "package.json"
+      - "bun.lock"
+      - "Dockerfile"
+      - "fly.toml"
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: bun run verify
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    concurrency:
+      group: fly-deploy
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - run: flyctl deploy --remote-only
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}

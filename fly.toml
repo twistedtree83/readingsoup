@@ -1,0 +1,29 @@
+# The realtime server. Used a handful of times a year, so it sleeps between
+# sessions and wakes on demand — a stopped machine costs nothing.
+#
+# If it is asleep, down, or never deployed, the Netlify site still works
+# completely: solo mode needs no server at all.
+
+app = "soup-readingsoup"
+primary_region = "syd"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  PORT = "8080"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+  # Socket.IO holds a long-lived connection per participant, so one machine
+  # must serve the whole room: room state is in memory and there is exactly
+  # one room. Never scale this past a single machine.
+  processes = ["app"]
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"

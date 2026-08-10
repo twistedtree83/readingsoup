@@ -33,7 +33,10 @@ export function loopback(config, { participantId, onView }) {
 // presenting the host's token and being reconnected as the host.
 const KEY = (intent) => (intent === "host" ? "soup.token.host" : "soup.token.player");
 
-export async function socketTransport({ url = "", intent, name, role, onView, onIdentity, onError }) {
+const DEFAULT_URL = () => globalThis.__SOUP_SERVER__ ?? "";
+
+export async function socketTransport({ url, intent, name, role, onView, onIdentity, onError }) {
+  url = url || DEFAULT_URL();
   const tokenKey = KEY(intent);
   // The client library is served by the game server itself, never a CDN — and
   // it is only ever loaded when someone actually joins a room, so the static
