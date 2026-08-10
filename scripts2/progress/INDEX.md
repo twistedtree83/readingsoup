@@ -12,7 +12,7 @@ Graph: `scripts2/prd.json` · Branch: `sprint/soup-mvp` · Parent: #1
 | S6  | #29 | Condition: Mudsound and the grapheme engine | yes | **shipped** — [S6.md](S6.md) |
 | S7  | #30 | Condition: Butterfingers (solo form) | yes | **shipped** — [S7.md](S7.md) |
 | S8  | #31 | Passage library: 20 passages and 10 dictation prompts | yes | **shipped** — [S8.md](S8.md) |
-| S9  | #32 | Solo tour complete: six conditions and the personal catalogue | yes | pending |
+| S9  | #32 | Solo tour complete: six conditions and the personal catalogue | yes | **shipped** — [S9.md](S9.md) |
 | S10 | #33 | Rooms and join: three roles, token identity, roster, QR | yes | pending |
 | S11 | #34 | Sim harness: headless N-participant sessions | yes | pending |
 | S12 | #35 | Turn loop and private passage delivery | yes | pending |

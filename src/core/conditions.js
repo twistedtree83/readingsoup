@@ -29,6 +29,32 @@ export const FIXES = {
   [CONDITIONS.BUTTERFINGERS]: CARDS.GIVE_THEM_A_SCRIBE,
 };
 
+// What each barrier feels like from the inside. Written for the catalogue,
+// which is framed as things you can do on Monday rather than as diagnoses.
+export const CONDITION_LABELS = {
+  [CONDITIONS.SOUP]: "Soup",
+  [CONDITIONS.FOG]: "Fog",
+  [CONDITIONS.SLIPPERY]: "Slippery Floor",
+  [CONDITIONS.VANISHING]: "The Vanishing",
+  [CONDITIONS.MUDSOUND]: "Mudsound",
+  [CONDITIONS.BUTTERFINGERS]: "Butterfingers",
+};
+
+export const CONDITION_DESCRIPTIONS = {
+  [CONDITIONS.SOUP]:
+    "The gaps between words disappear. Everything arrives as one long shape and you have to cut it up yourself before you can start.",
+  [CONDITIONS.FOG]:
+    "The words are all there. You just have to strain for every single one, and by the end of the line you have spent everything you had.",
+  [CONDITIONS.SLIPPERY]:
+    "The lines will not sit still. You get to the end of one, sweep back to the left, and land somewhere you have already been.",
+  [CONDITIONS.VANISHING]:
+    "What you have read stops being there. You cannot go back and check, so you carry every word forward or lose it.",
+  [CONDITIONS.MUDSOUND]:
+    "The spellings are legal but unfamiliar, so nothing can be recognised on sight. Every word has to be sounded out from scratch.",
+  [CONDITIONS.BUTTERFINGERS]:
+    "You know exactly what you want to say. It is getting out of your hands wrong, and everyone can see the result but not the intention.",
+};
+
 export const CARD_LABELS = {
   [CARDS.GIVE_IT_ROOM]: "Give it room",
   [CARDS.CHUNK_IT]: "Chunk it",

@@ -87,7 +87,7 @@
       "id": "S9",
       "issue": 32,
       "title": "Solo tour complete: six conditions and the personal catalogue",
-      "passes": false,
+      "passes": true,
       "afk": true,
       "depends": [
         "S3",

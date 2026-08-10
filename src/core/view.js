@@ -8,7 +8,13 @@
 //   3. No timing, score or ranking field exists to leak.
 
 import { fullDeck } from "./deck.js";
-import { CARD_LABELS } from "./conditions.js";
+import {
+  CARD_LABELS,
+  CONDITION_LABELS,
+  CONDITION_DESCRIPTIONS,
+  FIXES,
+  IMPLEMENTED,
+} from "./conditions.js";
 
 export function viewFor(state, participantId) {
   const base = {
@@ -18,8 +24,28 @@ export function viewFor(state, participantId) {
   };
 
   if (state.phase === "catalogue") {
-    return { ...base, seen: state.tour?.seen ?? [], cardLabels: CARD_LABELS };
+    // Every participant leaves knowing all six barriers exist. Only their own
+    // are marked, and only on their own device — the app never publishes a
+    // person-to-condition map.
+    const mine = state.reader === participantId ? state.tour?.seen ?? [] : [];
+    return {
+      ...base,
+      catalogue: IMPLEMENTED.map((condition) => ({
+        condition,
+        label: CONDITION_LABELS[condition],
+        description: CONDITION_DESCRIPTIONS[condition],
+        card: FIXES[condition],
+        cardLabel: CARD_LABELS[FIXES[condition]],
+        had: mine.includes(condition),
+      })),
+      cardLabels: CARD_LABELS,
+    };
   }
+
+  const position =
+    state.tour && state.mode === "solo"
+      ? `${state.tour.index + 1} of ${state.tour.order.length}`
+      : "";
 
   const isReader = state.reader === participantId && Boolean(state.round);
   if (!isReader) {
@@ -32,6 +58,7 @@ export function viewFor(state, participantId) {
       ...base,
       reader: true,
       kind: "typing",
+      position,
       prompt: state.round.promptText,
       intended: state.round.intended,
       output: state.round.output,
@@ -44,6 +71,7 @@ export function viewFor(state, participantId) {
   return {
     ...base,
     reader: true,
+    position,
     tokens: state.round.rendered.tokens,
     render: state.round.rendered.render,
     accommodated: state.round.accommodated,

@@ -51,7 +51,7 @@ function landing() {
 function typing(view) {
   const node = el(`
     <div>
-      <p class="eyebrow">Type this out</p>
+      <p class="eyebrow">Type this out<span class="pos">${view.position}</span></p>
       <div class="prompt">${escapeHtml(view.prompt)}</div>
       <input class="typebox" type="text" autocomplete="off" autocapitalize="off"
              autocorrect="off" spellcheck="false" aria-label="Type the sentence">
@@ -98,7 +98,7 @@ function reading(view) {
 
   const node = el(`
     <div>
-      <p class="eyebrow">Read this out loud</p>
+      <p class="eyebrow">Read this out loud<span class="pos">${view.position}</span></p>
       <div class="passage" data-gaps="${view.render.wordGaps}"
            style="letter-spacing:${view.render.letterSpacing};
                   color:color-mix(in srgb, var(--ink) ${view.render.contrast * 100}%, var(--paper))">${tokens}</div>
@@ -120,16 +120,31 @@ function reading(view) {
 }
 
 function catalogue(view) {
-  return el(`
+  const node = el(`
     <div>
       <p class="eyebrow">What you can do on Monday</p>
-      <h1 class="display">Six things that help.</h1>
-      ${Object.entries(view.cardLabels)
-        .map(([, label]) => `<div class="catalogue-item">${escapeHtml(label)}</div>`)
+      <h1 class="display">Six barriers.<br>Six things that lift them.</h1>
+      ${view.catalogue
+        .map(
+          (c) => `
+        <div class="catalogue-item${c.had ? " had" : ""}">
+          <div class="cat-head">
+            <span class="cat-name">${escapeHtml(c.label)}</span>
+            ${c.had ? `<span class="cat-badge">you had this</span>` : ""}
+          </div>
+          <p class="cat-desc">${escapeHtml(c.description)}</p>
+          <div class="cat-card" data-card="${c.card}">${escapeHtml(c.cardLabel)}</div>
+        </div>`
+        )
         .join("")}
-      <p class="note">The rest of the barriers arrive as the build continues.</p>
+      <p class="note">Nothing here was recorded. Nothing was timed.</p>
+      <button class="btn btn-primary" data-act="again">Start again</button>
     </div>
   `);
+  node
+    .querySelector('[data-act="again"]')
+    .addEventListener("click", () => send({ type: "START_SOLO", seed: Math.floor(Math.random() * 1e9) }));
+  return node;
 }
 
 // The Vanishing: the server (here, the core) says when each word expires; the
