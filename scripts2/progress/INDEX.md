@@ -4,16 +4,16 @@ Graph: `scripts2/prd.json` · Branch: `sprint/soup-mvp` · Parent: #1
 
 | ID | Issue | Task | AFK | Status |
 |----|-------|------|-----|--------|
-| S1  | #24 | Walking skeleton: solo mode, Soup, end to end | yes | pending |
+| S1  | #24 | Walking skeleton: solo mode, Soup, end to end | yes | **shipped** — [S1.md](S1.md) |
 | S2  | #25 | Connect hosting: Netlify site and Fly app | **no** | pending — human gate |
-| S3  | #26 | Condition: Fog | yes | pending |
-| S4  | #27 | Condition: Slippery Floor | yes | pending |
-| S5  | #28 | Condition: The Vanishing | yes | pending |
-| S6  | #29 | Condition: Mudsound and the grapheme engine | yes | pending |
-| S7  | #30 | Condition: Butterfingers (solo form) | yes | pending |
-| S8  | #31 | Passage library: 20 passages and 10 dictation prompts | yes | pending |
-| S9  | #32 | Solo tour complete: six conditions and the personal catalogue | yes | pending |
-| S10 | #33 | Rooms and join: three roles, token identity, roster, QR | yes | pending |
+| S3  | #26 | Condition: Fog | yes | **shipped** — [S3.md](S3.md) |
+| S4  | #27 | Condition: Slippery Floor | yes | **shipped** — [S4.md](S4.md) |
+| S5  | #28 | Condition: The Vanishing | yes | **shipped** — [S5.md](S5.md) |
+| S6  | #29 | Condition: Mudsound and the grapheme engine | yes | **shipped** — [S6.md](S6.md) |
+| S7  | #30 | Condition: Butterfingers (solo form) | yes | **shipped** — [S7.md](S7.md) |
+| S8  | #31 | Passage library: 20 passages and 10 dictation prompts | yes | **shipped** — [S8.md](S8.md) |
+| S9  | #32 | Solo tour complete: six conditions and the personal catalogue | yes | **shipped** — [S9.md](S9.md) |
+| S10 | #33 | Rooms and join: three roles, token identity, roster, QR | yes | **shipped** — [S10.md](S10.md) |
 | S11 | #34 | Sim harness: headless N-participant sessions | yes | pending |
 | S12 | #35 | Turn loop and private passage delivery | yes | pending |
 | S13 | #36 | The silent round | yes | pending |

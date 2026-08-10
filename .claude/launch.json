@@ -1,0 +1,14 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "soup",
+      "runtimeExecutable": "bun",
+      "runtimeArgs": [
+        "run",
+        "src/server/index.js"
+      ],
+      "port": 8787
+    }
+  ]
+}

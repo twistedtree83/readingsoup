@@ -1,0 +1,18 @@
+# The static half: the landing page and solo mode, which need no server at all.
+# The realtime server is deployed separately to Fly; if it is asleep, down, or
+# never deployed, everything here still works.
+
+[build]
+  command = "bash scripts/build-static.sh"
+  publish = "dist"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "no-referrer"
+
+[[headers]]
+  for = "/src/*"
+  [headers.values]
+    Content-Type = "text/javascript; charset=utf-8"
