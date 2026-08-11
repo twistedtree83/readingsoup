@@ -25,6 +25,19 @@ const OBSERVER_RATIO = Number(args.get("observers") ?? 0.2);
 const KEEP = args.has("keep");
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// Wait for a view to ARRIVE, not for a guessed number of milliseconds. A fixed
+// sleep encodes how fast this machine happened to be the day it was written: a
+// twenty-person session under load misses it and reports a phantom failure,
+// while a fast one sits there burning seconds it did not need. Polling returns
+// the moment the thing is true, so the harness gets both faster and steadier.
+async function until(predicate, timeout = 6000) {
+  for (let waited = 0; waited < timeout; waited += 50) {
+    if (predicate()) return true;
+    await wait(50);
+  }
+  return predicate();
+}
 const NAMES = "Priya Marcus Aisha Tom Bea Dev Noor Sam Rin Ola Kit Jo Ada Ravi Mei Ines Zed Fen Cal Uma".split(" ");
 
 // ---------------------------------------------------------------- the server
@@ -209,7 +222,7 @@ async function runSize(url, size) {
 
   // ---- the silent round: everyone at once, on the same words --------------
   host.send({ type: "START_SILENT", durationMs: 4000 });
-  await wait(900);
+  await until(() => people.every((p) => Array.isArray(p.last()?.tokens)) && host.last()?.phase === "silent");
 
   const withCondition = people.filter((p) => p.role === "participant");
   const cover = people.filter((p) => p.role === "observer");
@@ -234,65 +247,140 @@ async function runSize(url, size) {
   assertSilentTellsYouNothingAboutOthers(people, label);
 
   // it must end on its own, and the room must be able to carry on
-  await wait(4200);
+  await until(() => host.last()?.remainingMs === 0, 9000);
   check(`${label}: countdown did not reach zero`, host.last()?.remainingMs === 0, `${host.last()?.remainingMs}`);
   host.send({ type: "END_SILENT" });
-  await wait(500);
+  await until(() => [host, ...people].every((p) => p.last()?.phase === "lobby"));
   check(`${label}: END_SILENT did not return to the lobby`, host.last()?.phase === "lobby", `${host.last()?.phase}`);
 
-  // ---- drive a real round through the real transport ----------------------
+  // ---- volunteering -------------------------------------------------------
+  // The button is on every phone. Whose tap reaches the projector is not.
+  for (const p of people) {
+    check(`${label}: a phone was not offered the volunteer button`, p.last()?.canVolunteer === true, p.name);
+  }
+
+  const willing = people.filter((p) => p.role === "participant").at(-1);
+  const rosterBefore = host.last()?.roster?.map((r) => r.name) ?? [];
+  if (willing && size > 1) {
+    willing.send({ type: "VOLUNTEER" });
+    await until(() => willing.last()?.volunteered === true);
+    check(`${label}: a volunteer did not surface at the top`, host.last()?.roster?.[0]?.name === willing.name,
+      `${host.last()?.roster?.[0]?.name}`);
+    check(`${label}: the volunteer's own phone did not confirm`, willing.last()?.volunteered === true, willing.name);
+  }
+
+  const quiet = people.find((p) => p.role === "observer");
+  if (quiet) {
+    quiet.send({ type: "VOLUNTEER" });
+    await until(() => quiet.last()?.volunteered === true);
+    // Their own phone confirms exactly like everyone else's...
+    check(`${label}: an observer's phone did not confirm`, quiet.last()?.volunteered === true, quiet.name);
+    // ...and the projector never hears about it. An ineligible name at the top
+    // of the roster is the name the facilitator taps, and a tap that visibly
+    // does nothing discloses the role to the whole room at once.
+    const names = host.last()?.roster?.map((r) => r.name) ?? [];
+    check(`${label}: an observer surfaced as a volunteer`, names[0] !== quiet.name, quiet.name);
+    check(`${label}: an observer's tap reordered the roster`,
+      names.join("|") === (willing && size > 1
+        ? [willing.name, ...rosterBefore.filter((n) => n !== willing.name)].join("|")
+        : rosterBefore.join("|")),
+      names.join(","));
+    check(`${label}: an observer was flagged willing on the projector`,
+      (host.last()?.roster ?? []).every((r) => r.volunteered === false || r.name === willing?.name));
+  }
+
+  // ---- the spotlights -----------------------------------------------------
   // The unit suite proves the boundary in the core. This proves it on the wire.
+  host.send({ type: "SET_SPOTLIGHT_COUNT", count: 20 });
+  await until(() => host.last()?.spotlight?.planned > 0);
+  const plan = host.last()?.spotlight ?? {};
+  check(`${label}: spotlight count was not capped at eight`, plan.planned === plan.max, `${plan.planned}`);
+  check(`${label}: no time estimate for the plan`, plan.estimateMs > 0, `${plan.estimateMs}`);
+
+  const hasTask = (v) => Array.isArray(v?.tokens) || typeof v?.prompt === "string";
+  const observerNamesAll = people.filter((p) => p.role === "observer").map((p) => p.name);
   const readerIdx = people.findIndex((p) => p.role === "participant");
+
   if (readerIdx >= 0) {
-    const reader = people[readerIdx];
-    host.send({ type: "START_ROUND", readerIndex: readerIdx });
-    await wait(600);
-
-    check(`${label}: reader got tokens`, Array.isArray(reader.last()?.tokens), `${reader.name}`);
-    check(`${label}: host was told whose turn`, host.last()?.readerName === reader.name);
-    check(`${label}: clean passage withheld mid-round`, host.last()?.clean === undefined);
-
-    for (const p of people.filter((p) => p !== reader)) {
-      const v = p.last() ?? {};
-      check(`${label}: a non-reader got tokens`, !("tokens" in v), p.name);
-      check(`${label}: a non-reader was not told to watch`, v.watching === true, p.name);
-    }
-
-    // An observer must never be selectable as a reader.
-    const obsIdx = people.findIndex((p) => p.role === "observer");
-    if (obsIdx >= 0) {
+    // An observer must never be selectable as a reader. Their position is read
+    // off the projector, not off the join order: volunteers move the roster
+    // about, and the facilitator taps what is actually on screen.
+    if (quiet) {
+      const obsIdx = (host.last()?.roster ?? []).findIndex((r) => r.name === quiet.name);
+      check(`${label}: an observer is missing from the roster`, obsIdx >= 0, quiet.name);
       host.send({ type: "START_ROUND", readerIndex: obsIdx });
       await wait(400);
       check(`${label}: an observer was put in the reader seat`,
-        host.last()?.readerName !== people[obsIdx].name, people[obsIdx].name);
+        host.last()?.phase !== "round", quiet.name);
     }
 
-    reader.send({ type: "DONE" });
-    await wait(500);
-    check(`${label}: host gets the clean passage after done`, typeof host.last()?.clean === "string",
-      `${typeof host.last()?.clean}`);
-    for (const p of people) {
-      check(`${label}: a phone received the clean passage`, !("clean" in (p.last() ?? {})), p.name);
+    // The cap is what matters at the sizes the cap was written for. Below that
+    // the loop is the same code with fewer people in it, so two rounds prove it
+    // without adding a minute of wall clock to every run.
+    const rounds = size >= 8 ? 8 : 2;
+    let ran = 0;
+    let typedRounds = 0;
+    for (let i = 0; i < rounds; i++) {
+      // Chance picks the person; the app picks the barrier. Neither is on a phone.
+      host.send({ type: "START_ROUND", random: true });
+      await until(() => host.last()?.phase === "round", 1500);
+      if (host.last()?.phase !== "round") break; // everyone has had all six
+      ran++;
+
+      const name = host.last()?.readerName;
+      const reader = people.find((p) => p.name === name);
+      await until(() => people.every((p) => p.last()?.phase === "round"));
+      check(`${label}: the draw landed on an observer`, !observerNamesAll.includes(name), `${name}`);
+      check(`${label}: the drawn reader is not in the room`, Boolean(reader), `${name}`);
+      if (!reader) break;
+
+      check(`${label}: reader got no task`, hasTask(reader.last()), `${name}`);
+      check(`${label}: clean passage withheld mid-round`, host.last()?.clean === undefined);
+      check(`${label}: the reader was told which barrier they have`,
+        !("condition" in (reader.last() ?? {})), name);
+      if (reader.last()?.kind === "typing") typedRounds++;
+
+      for (const p of people.filter((p) => p !== reader)) {
+        const v = p.last() ?? {};
+        check(`${label}: a non-reader got tokens`, !("tokens" in v), p.name);
+        check(`${label}: a non-reader got a dictation prompt`, !("prompt" in v), p.name);
+        check(`${label}: a non-reader was not told to watch`, v.watching === true, p.name);
+      }
+
+      reader.send({ type: "DONE" });
+      await until(() => typeof host.last()?.clean === "string");
+      check(`${label}: host gets the clean passage after done`, typeof host.last()?.clean === "string",
+        `${typeof host.last()?.clean}`);
+      for (const p of people) {
+        check(`${label}: a phone received the clean passage`, !("clean" in (p.last() ?? {})), p.name);
+      }
+
+      // The loop must loop. A single turn is not a turn loop.
+      host.send({ type: "END_ROUND" });
+      await until(() => host.last()?.phase === "lobby");
+      check(`${label}: END_ROUND did not return to the roster`, host.last()?.phase === "lobby",
+        `phase=${host.last()?.phase}`);
     }
 
-    // The loop must loop: end the round and run a second one with a different
-    // reader. A single turn is not a turn loop.
-    host.send({ type: "END_ROUND" });
-    await wait(500);
-    check(`${label}: END_ROUND did not return to the roster`, host.last()?.phase === "lobby",
-      `phase=${host.last()?.phase}`);
-
-    const second = people.findIndex((p, i) => p.role === "participant" && i !== readerIdx);
-    if (second >= 0) {
-      host.send({ type: "START_ROUND", readerIndex: second });
-      await wait(600);
-      check(`${label}: second round did not start`, host.last()?.readerName === people[second].name,
-        `${host.last()?.readerName}`);
-      check(`${label}: previous reader was not moved to watching`,
-        people[readerIdx].last()?.watching === true);
-      people[second].send({ type: "DONE" });
+    check(`${label}: no spotlight round ran`, ran > 0, `${ran}`);
+    if (size >= 8) {
+      check(`${label}: the eight-round cap was not reached`, ran === 8, `${ran}`);
+      // Butterfingers only ever appears here, so a run with no typed round means
+      // the room never watched the one barrier that is not about reading.
+      check(`${label}: the typing barrier never came up`, typedRounds > 0, `${typedRounds}`);
+      host.send({ type: "START_ROUND", random: true });
       await wait(400);
+      check(`${label}: a ninth spotlight started`, host.last()?.phase === "lobby", `${host.last()?.phase}`);
     }
+
+    // The facilitator can stop whenever they judge the room has had enough.
+    host.send({ type: "END_SPOTLIGHTS" });
+    await until(() => host.last()?.spotlight?.ended === true);
+    check(`${label}: END_SPOTLIGHTS was not recorded`, host.last()?.spotlight?.ended === true);
+    host.send({ type: "START_ROUND", random: true });
+    await wait(400);
+    check(`${label}: a round started after spotlights ended`, host.last()?.phase === "lobby",
+      `${host.last()?.phase}`);
 
     // A second /host arrival must not destroy the room — least of all
     // mid-round, which is the worst possible moment.

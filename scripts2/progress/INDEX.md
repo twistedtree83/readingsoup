@@ -17,7 +17,7 @@ Graph: `scripts2/prd.json` · Branch: `sprint/soup-mvp` · Parent: #1
 | S11 | #34 | Sim harness: headless N-participant sessions | yes | **shipped** — [S11.md](S11.md) |
 | S12 | #35 | Turn loop and private passage delivery | yes | **shipped** — [S12.md](S12.md) |
 | S13 | #36 | The silent round | yes | **shipped** — [S13.md](S13.md) |
-| S14 | #37 | Spotlight rounds: volunteers, random draw, coverage selection | yes | pending |
+| S14 | #37 | Spotlight rounds: volunteers, random draw, coverage selection | yes | **shipped** — [S14.md](S14.md) |
 | S15 | #38 | Accommodation cards: dealing, play, resolution, attribution | yes | pending |
 | S16 | #39 | Round pacing: watch window, play cap, facilitator override | yes | pending |
 | S17 | #40 | Tag in | yes | pending |

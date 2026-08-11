@@ -23,7 +23,7 @@ import {
 export function viewFor(state, participantId, config) {
   const me = state.participants?.[participantId];
 
-  if (me?.role === ROLES.HOST) return hostView(state);
+  if (me?.role === ROLES.HOST) return hostView(state, config);
   if (state.phase === "silent") {
     const passage = byId(state.silent.passageId);
     const condition = state.silent.assigned[participantId];
@@ -66,15 +66,32 @@ export function viewFor(state, participantId, config) {
     const readerName = state.participants[state.round.reader]?.name;
 
     if (state.reader === participantId || state.round.reader === participantId) {
-      return {
+      const seat = {
         phase: "round",
         mode: state.mode,
         role: me?.role ?? "participant",
         reader: true,
         readerName,
+        finished: state.round.finished,
+      };
+      // The barrier itself is never named to the reader. Knowing you have
+      // Mudsound is knowing which card lifts it, and the diagnosis is the
+      // game — for them at the reveal, and for the room right now.
+      if (state.round.kind === "typing") {
+        return {
+          ...seat,
+          kind: "typing",
+          prompt: state.round.promptText,
+          intended: state.round.intended,
+          output: state.round.output,
+          accommodated: state.round.accommodated,
+        };
+      }
+      return {
+        ...seat,
         tokens: state.round.rendered.tokens,
         render: state.round.rendered.render,
-        finished: state.round.finished,
+        accommodated: state.round.accommodated,
       };
     }
 
@@ -97,6 +114,12 @@ export function viewFor(state, participantId, config) {
       name: me?.name,
       roomCode: state.roomCode,
       joined: Boolean(me),
+      // Offered to everyone in the room, observers included. A button only some
+      // phones carry is readable from the next seat, and choosing to observe is
+      // nobody else's business. Tapping it confirms the same way for everyone;
+      // only a participant's willingness ever reaches the projector.
+      canVolunteer: Boolean(me) && !(state.spotlight?.ended === true),
+      volunteered: me?.volunteered === true,
     };
   }
 
@@ -169,17 +192,50 @@ export function viewFor(state, participantId, config) {
 // derived from who chose to observe. This screen is shown to the entire room at
 // once, so anything role-shaped on it would disclose an opt-out to everybody
 // simultaneously — the exact thing the observer role exists to prevent.
-// The roster's order, as tokens. The host addresses participants by POSITION,
-// never by token: a token is an auth credential, and handing one to the
-// projector would let the facilitator act as that participant.
-export function rosterTokens(state) {
+// Willing readers first, then join order, so the facilitator can pick someone
+// who wants it at a glance.
+//
+// An observer's "I'll go" is deliberately dropped here rather than in the
+// reducer. Surfacing it would put an ineligible name at the top of the list —
+// precisely the name the facilitator would then tap — and a tap that visibly
+// does nothing discloses to the whole room what the role exists to keep
+// private. Their own phone still confirms; this list simply never hears of it.
+function rosterOrder(state) {
   return Object.values(state.participants ?? {})
     .filter((p) => p.role !== ROLES.HOST)
-    .sort((a, b) => a.order - b.order)
-    .map((p) => p.token);
+    .map((p) => ({ ...p, willing: p.volunteered === true && p.role === ROLES.PARTICIPANT }))
+    .sort((a, b) => Number(b.willing) - Number(a.willing) || a.order - b.order);
 }
 
-function hostView(state) {
+// The roster's order, as tokens. The host addresses participants by POSITION,
+// never by token: a token is an auth credential, and handing one to the
+// projector would let the facilitator act as that participant. Both orderings
+// come from one place, because a projector and a token list that disagree hand
+// the round to the wrong person.
+export function rosterTokens(state) {
+  return rosterOrder(state).map((p) => p.token);
+}
+
+// What the facilitator plans the slot against. The estimate is the whole cost
+// of a spotlight — announce, read, clean passage, the beat of talk after it —
+// so eight rounds reads as the twenty minutes it actually is.
+function spotlightPlan(state, config) {
+  const { maxRounds, roundEstimateMs } = (config ?? CONFIG).spotlight;
+  const s = state.spotlight ?? {};
+  return {
+    planned: s.planned ?? null,
+    done: s.done ?? 0,
+    max: maxRounds,
+    ended: s.ended === true,
+    estimateMs: (s.planned ?? 0) * roundEstimateMs,
+    options: Array.from({ length: maxRounds }, (_, i) => ({
+      count: i + 1,
+      estimateMs: (i + 1) * roundEstimateMs,
+    })),
+  };
+}
+
+function hostView(state, config) {
   if (state.phase === "silent") {
     // A countdown and nothing else. No roster, no names, no progress per person.
     return {
@@ -192,6 +248,7 @@ function hostView(state) {
   }
 
   if (state.phase === "round") {
+    const plan = spotlightPlan(state, config);
     return {
       phase: "round",
       mode: state.mode,
@@ -203,13 +260,15 @@ function hostView(state) {
       // only once the round is over.
       clean: state.round.finished ? byId(state.round.passageId)?.text : undefined,
       canAdvance: state.round.finished,
+      spotlight: { ...plan, index: plan.done + 1 },
     };
   }
 
-  const roster = Object.values(state.participants)
-    .filter((p) => p.role !== ROLES.HOST)
-    .sort((a, b) => a.order - b.order)
-    .map((p) => ({ name: p.name, connected: p.connected }));
+  const roster = rosterOrder(state).map((p) => ({
+    name: p.name,
+    connected: p.connected,
+    volunteered: p.willing,
+  }));
 
   return {
     phase: state.phase,
@@ -217,6 +276,7 @@ function hostView(state) {
     role: ROLES.HOST,
     roomCode: state.roomCode,
     roster,
+    spotlight: spotlightPlan(state, config),
     // Who is actually here, not who has ever been. This is the number the
     // facilitator reads when deciding to start, and the number PRD mode
     // selection keys off — someone who left permanently must not inflate a

@@ -8,7 +8,7 @@ import { CONDITIONS, FIXES, IMPLEMENTED, isTyping, SILENT_POOL } from "./conditi
 import { rng } from "./random.js";
 import { pick, pickDictation } from "./passages.js";
 import { resolve } from "./deck.js";
-import { mangle, plain } from "./mangle.js";
+import { mangle } from "./mangle.js";
 import { mangleTyped } from "./butterfingers.js";
 import { BANDS } from "./passages.js";
 
@@ -34,43 +34,93 @@ function bandFor(condition) {
   return SHORT_BAND_CONDITIONS.includes(condition) ? BANDS.SHORT : BANDS.FULL;
 }
 
-function beginRound(state, condition, config) {
-  const seedBase = (state.seed ?? 1) + state.tour.index * 101;
-
+// One round, whoever is reading it. Solo and spotlight differ only in who is
+// in the seat and where the seed comes from — a round that forked on mode would
+// be two implementations of the same thing, drifting apart.
+//
+// Seed varies per round so two rounds of the same condition do not land on an
+// identical displacement, but stays derived from the session seed so the whole
+// session replays deterministically in a test.
+function makeRound(condition, config, { seed, usedPassages, reducedMotion }) {
   if (isTyping(condition)) {
     // A typed task: the participant is given a sentence and simply cannot get
     // it out. No target matching, no threshold, no score.
-    const prompt = pickDictation(state.tour.usedPassages, seedBase);
+    const prompt = pickDictation(usedPassages, seed);
     return {
       condition,
       fixedBy: FIXES[condition],
       kind: "typing",
       passageId: prompt.id,
       promptText: prompt.text,
-      seed: seedBase,
+      seed,
       intended: "",
       output: "",
       accommodated: false,
-      rendered: mangle("", condition, config, { seed: seedBase }),
+      rendered: mangle("", condition, config, { seed }),
     };
   }
 
-  const passage = pick(bandFor(condition), state.tour.usedPassages, seedBase);
-  // Seed varies per round so two rounds of the same condition do not land on an
-  // identical displacement, but stays derived from the session seed so the whole
-  // session replays deterministically in a test.
-  const seed = seedBase;
+  const passage = pick(bandFor(condition), usedPassages, seed);
   return {
     condition,
     fixedBy: FIXES[condition],
     passageId: passage.id,
     seed,
     accommodated: false,
-    rendered: mangle(passage.text, condition, config, {
-      seed,
-      reducedMotion: state.reducedMotion === true,
-    }),
+    rendered: mangle(passage.text, condition, config, { seed, reducedMotion }),
   };
+}
+
+function beginRound(state, condition, config) {
+  return makeRound(condition, config, {
+    seed: (state.seed ?? 1) + state.tour.index * 101,
+    usedPassages: state.tour.usedPassages,
+    reducedMotion: state.reducedMotion === true,
+  });
+}
+
+// ------------------------------------------------------------ the spotlights
+
+const SPOTLIGHT_ZERO = { planned: null, done: 0, counts: {}, ended: false };
+const spotlightOf = (state) => state.spotlight ?? SPOTLIGHT_ZERO;
+
+// The app owns pedagogical coverage: whichever barrier the room has watched
+// least goes next, so nobody sits through low contrast three times and never
+// sees the typing one. Skipping what this reader has already had is not a
+// tie-break but a hard filter — the room must watch genuine first contact, not
+// a practised performance, and the reader must learn something new.
+//
+// Ties fall to IMPLEMENTED order, so a session replays identically.
+function conditionFor(counts, seen = []) {
+  const options = IMPLEMENTED.filter((c) => !seen.includes(c));
+  if (!options.length) return null;
+  return options.reduce((best, c) => ((counts[c] ?? 0) < (counts[best] ?? 0) ? c : best), options[0]);
+}
+
+// Observers are never assigned a condition and never called on, so they are not
+// in this list at all. Neither is anyone who has had all six.
+function eligibleReaders(state) {
+  const { counts } = spotlightOf(state);
+  return Object.values(state.participants)
+    .filter((p) => p.role === ROLES.PARTICIPANT)
+    .filter((p) => conditionFor(counts, p.seen) !== null)
+    .sort((a, b) => a.order - b.order);
+}
+
+function canSpotlight(state, config) {
+  const { done, ended } = spotlightOf(state);
+  return !ended && done < config.spotlight.maxRounds;
+}
+
+// Chance, but not the kind that calls the same person twice while somebody else
+// never goes. Anyone yet to read is drawn from first.
+function drawReader(state) {
+  const eligible = eligibleReaders(state);
+  if (!eligible.length) return null;
+  const fresh = eligible.filter((p) => !p.spotlighted);
+  const pool = fresh.length ? fresh : eligible;
+  const { done } = spotlightOf(state);
+  return pool[Math.floor(rng((state.seed ?? 1) + done * 331)() * pool.length)].token;
 }
 
 export function reduce(state, event, config) {
@@ -97,6 +147,9 @@ export function reduce(state, event, config) {
 
     case "TYPE": {
       if (!state.round || state.round.kind !== "typing") return { state, effects };
+      // In a room the keyboard belongs to the person in the seat. Solo has no
+      // reader token to check against, and no one else to check for.
+      if (state.round.reader && event.token !== state.round.reader) return { state, effects };
       const intended = String(event.intended ?? "");
       // Give them a scribe: a colleague types for you, so the input comes out
       // clean. In solo that is simply the mangling stopping.
@@ -235,28 +288,69 @@ export function reduce(state, event, config) {
       return { state: { ...state, phase: "lobby", silent: null }, effects };
     }
 
+    case "SET_SPOTLIGHT_COUNT": {
+      // A plan, not a cap: the cap is eight and lives in START_ROUND, because a
+      // facilitator who talks past their own plan must not be blocked by it.
+      const max = config.spotlight.maxRounds;
+      const planned = Math.min(max, Math.max(1, Math.round(Number(event.count) || 0)));
+      return { state: { ...state, spotlight: { ...spotlightOf(state), planned } }, effects };
+    }
+
+    case "VOLUNTEER": {
+      const who = state.participants[event.token];
+      if (!who) return { state, effects };
+      // Recorded for everyone who taps it, including observers — their own
+      // phone must confirm exactly like anybody else's, or the button itself
+      // becomes the tell. Whose volunteering reaches the projector is decided
+      // in `view`, where an observer's never does.
+      return {
+        state: {
+          ...state,
+          participants: { ...state.participants, [event.token]: { ...who, volunteered: true } },
+        },
+        effects,
+      };
+    }
+
+    case "END_SPOTLIGHTS": {
+      return { state: { ...state, spotlight: { ...spotlightOf(state), ended: true } }, effects };
+    }
+
     case "START_ROUND": {
-      // The facilitator picks the person. Observers are never eligible: they
-      // are never assigned a condition and never called on.
-      const who = state.participants[event.reader];
+      if (!canSpotlight(state, config)) return { state, effects };
+
+      // The human owns who reads — named from the roster, or handed to chance.
+      const reader = event.random ? drawReader(state) : event.reader;
+      const who = state.participants[reader];
+      // Observers are never eligible: they are never assigned a condition and
+      // never called on. Neither is anyone who has already had all six.
       if (!who || who.role !== ROLES.PARTICIPANT) return { state, effects };
 
+      const spotlight = spotlightOf(state);
+      const condition = conditionFor(spotlight.counts, who.seen);
+      if (!condition) return { state, effects };
+
       const used = state.usedPassages ?? [];
-      const seed = (state.seed ?? 1) + used.length * 101;
-      const passage = pick(BANDS.FULL, used, seed);
+      const round = makeRound(condition, config, {
+        seed: (state.seed ?? 1) + used.length * 101,
+        usedPassages: used,
+        reducedMotion: state.reducedMotion === true,
+      });
 
       return {
         state: {
           ...state,
           phase: "round",
-          usedPassages: [...used, passage.id],
-          round: {
-            reader: event.reader,
-            passageId: passage.id,
-            seed,
-            finished: false,
-            rendered: plain(passage.text),
+          usedPassages: [...used, round.passageId],
+          participants: {
+            ...state.participants,
+            [reader]: { ...who, seen: [...(who.seen ?? []), condition], spotlighted: true },
           },
+          spotlight: {
+            ...spotlight,
+            counts: { ...spotlight.counts, [condition]: (spotlight.counts[condition] ?? 0) + 1 },
+          },
+          round: { ...round, reader, finished: false },
         },
         effects,
       };
@@ -266,7 +360,22 @@ export function reduce(state, event, config) {
       // Back to the roster so the facilitator can pick the next reader. Without
       // this the clean-passage slide is terminal and the loop is a single turn.
       if (state.phase !== "round") return { state, effects };
-      return { state: { ...state, phase: "lobby", round: null }, effects };
+      const spotlight = spotlightOf(state);
+      const reader = state.participants[state.round.reader];
+      return {
+        state: {
+          ...state,
+          phase: "lobby",
+          round: null,
+          // Having read, they are no longer waiting to — leaving them pinned to
+          // the top of the roster would crowd out the next willing person.
+          participants: reader
+            ? { ...state.participants, [reader.token]: { ...reader, volunteered: false } }
+            : state.participants,
+          spotlight: { ...spotlight, done: spotlight.done + 1 },
+        },
+        effects,
+      };
     }
 
     case "PLAY_CARD": {

@@ -259,11 +259,14 @@ body.host #stage { min-height: 100dvh; }
   align-items: center;
   justify-content: space-between;
 }
-.lobby-left { display: flex; flex-direction: column; justify-content: space-between; height: 90vh; flex: 1; min-width: 0; }
+/* The code is the one thing on this screen a person has to copy off a wall, so
+   it gets the room it needs: the column holding it takes the larger share, and
+   the type scales to the column rather than to the viewport. */
+.lobby-left { display: flex; flex-direction: column; justify-content: space-between; height: 90vh; flex: 2 1 0; min-width: 0; }
 .host-eyebrow { font-size: clamp(20px, 2.2vw, 34px); font-weight: 800; color: var(--red); margin: 0; letter-spacing: 0.04em; }
 .host-join { font-size: clamp(24px, 3.2vw, 52px); font-weight: 800; margin: 0; }
 .host-code {
-  font-size: clamp(110px, 17vw, 280px);
+  font-size: clamp(90px, 11vw, 280px);
   font-weight: 900; letter-spacing: -0.05em; line-height: 0.85; margin: 0;
 }
 .host-count { font-size: clamp(22px, 2.7vw, 44px); font-weight: 800; margin: 0; }
@@ -350,4 +353,31 @@ button.roster-name { font-family: var(--font); background: var(--paper); color: 
   font-weight: 900; letter-spacing: -0.05em; line-height: 0.85;
   margin: 2vh 0 4vh; font-variant-numeric: tabular-nums;
 }
-.lobby-actions { display: flex; align-items: center; }
+.lobby-actions { display: flex; flex-direction: column; align-items: flex-start; gap: 2.5vh; flex: 0 1 auto; max-width: 22em; }
+
+/* --- planning the spotlights --------------------------------------------- */
+
+.plan { display: flex; flex-direction: column; gap: 10px; }
+.plan-label {
+  font-size: clamp(16px, 1.6vw, 26px); font-weight: 800; margin: 0;
+  color: var(--red); letter-spacing: 0.04em; text-transform: uppercase;
+}
+.plan-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.plan-n {
+  font-family: var(--font); cursor: pointer;
+  background: var(--paper); color: var(--ink); border: 4px solid var(--ink);
+  font-size: clamp(20px, 2vw, 32px); font-weight: 900; letter-spacing: -0.02em;
+  min-width: 1.9em; padding: 8px 0;
+}
+.plan-n.on { background: var(--ink); color: var(--paper); }
+.plan-note { font-size: clamp(16px, 1.6vw, 26px); font-weight: 700; margin: 0; max-width: 14em; }
+
+/* A willing reader is marked, never ranked: it is the one thing on this screen
+   somebody put there about themselves, on purpose, to be picked. */
+button.roster-name.willing { background: var(--red); color: var(--paper); border-color: var(--deep); }
+
+.host-quiet {
+  display: block; margin-top: 3vh; font-family: var(--font); cursor: pointer;
+  background: none; border: none; padding: 0; color: var(--ink);
+  font-size: clamp(16px, 1.6vw, 26px); font-weight: 700; text-decoration: underline;
+}

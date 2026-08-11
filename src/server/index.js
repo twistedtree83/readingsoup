@@ -159,27 +159,36 @@ io.on("connection", (socket) => {
     socket.emit("view", viewFor(state, t));
   });
 
+  // Running the session is the facilitator's job. Listed rather than inferred:
+  // a participant who could name themselves the next reader would be able to
+  // put a colleague in the seat too.
+  const HOST_ONLY = new Set([
+    "START_SILENT",
+    "END_SILENT",
+    "START_ROUND",
+    "END_ROUND",
+    "SET_SPOTLIGHT_COUNT",
+    "END_SPOTLIGHTS",
+  ]);
+
   socket.on("event", (event = {}) => {
     if (!token) return;
 
-    // The host addresses participants by roster position. Resolving it here
-    // keeps tokens off the projector entirely.
-    if (event.type === "START_SILENT" || event.type === "END_SILENT") {
+    if (HOST_ONLY.has(event.type)) {
       if (state.participants[token]?.role !== "host") return;
-      dispatch({ type: event.type, durationMs: event.durationMs });
-      return void syncTicker();
-    }
 
-    if (event.type === "END_ROUND") {
-      if (state.participants[token]?.role !== "host") return;
-      return void dispatch({ type: "END_ROUND" });
-    }
+      if (event.type === "START_ROUND") {
+        // The host addresses participants by roster position. Resolving it here
+        // keeps tokens off the projector entirely.
+        if (event.random) return void dispatch({ type: "START_ROUND", random: true });
+        const reader = rosterTokens(state)[event.readerIndex];
+        if (!reader) return;
+        return void dispatch({ type: "START_ROUND", reader });
+      }
 
-    if (event.type === "START_ROUND" && typeof event.readerIndex === "number") {
-      if (state.participants[token]?.role !== "host") return;
-      const reader = rosterTokens(state)[event.readerIndex];
-      if (!reader) return;
-      return void dispatch({ type: "START_ROUND", reader });
+      dispatch({ type: event.type, durationMs: event.durationMs, count: event.count });
+      if (event.type === "START_SILENT" || event.type === "END_SILENT") syncTicker();
+      return;
     }
 
     dispatch({ ...event, token, participantId: token });

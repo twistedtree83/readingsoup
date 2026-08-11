@@ -120,9 +120,10 @@ describe("no non-reader ever receives passage content", () => {
     const v = viewFor(s, "p0");
     const joined = v.tokens.map((t) => t.text).join(v.render.wordGaps ? " " : "");
     const source = PASSAGES.find((p) => p.id === s.round.passageId)?.text;
-    // In this slice the passage is unmangled, so it MAY match — what must hold
-    // is that the client is given tokens and a render mode, never a raw string
-    // it could have been handed directly.
+    // Whether the tokens happen to spell the source depends on which barrier
+    // the app selected — a presentational one leaves the words intact on
+    // purpose. What must hold in every case is that the client is given tokens
+    // and a render mode, never a raw string it could have been handed directly.
     expect(Array.isArray(v.tokens)).toBe(true);
     expect(typeof joined).toBe("string");
     expect(v.passage).toBeUndefined();

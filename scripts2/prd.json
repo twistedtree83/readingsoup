@@ -141,7 +141,7 @@
       "id": "S14",
       "issue": 37,
       "title": "Spotlight rounds: volunteers, random draw, coverage selection",
-      "passes": false,
+      "passes": true,
       "afk": true,
       "depends": [
         "S13"

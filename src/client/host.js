@@ -17,6 +17,8 @@ const esc = (s) =>
 let identity = {};
 
 function lobby(view) {
+  const spot = view.spotlight ?? {};
+  const over = spot.ended || spot.done >= spot.max;
   return el(`
     <section class="slide slide-lobby">
       <div class="lobby-left">
@@ -29,6 +31,8 @@ function lobby(view) {
       </div>
       <div class="lobby-actions">
         <button class="host-link" data-act="silent">Start — everyone at once</button>
+        ${over ? "" : `<button class="host-link" data-act="draw">Draw at random</button>`}
+        ${plan(spot)}
       </div>
       <div class="lobby-right">
         <div class="qr"><img src="/qr.svg" alt="QR code to join" width="380" height="380"></div>
@@ -36,6 +40,33 @@ function lobby(view) {
     </section>
     `);
 }
+
+// The count is set against a live estimate, because the facilitator is planning
+// against a slot on a timetable, not against a number of rounds.
+function plan(spot) {
+  if (!spot.options) return "";
+  if (spot.ended || spot.done >= spot.max) {
+    return `<p class="plan-note">Spotlights finished — ${spot.done} of them.</p>`;
+  }
+  const choices = spot.options
+    .map(
+      (o) =>
+        `<button class="plan-n${o.count === spot.planned ? " on" : ""}" data-count="${o.count}">${o.count}</button>`
+    )
+    .join("");
+  return `
+    <div class="plan">
+      <p class="plan-label">Spotlight rounds${spot.done ? ` · ${spot.done} done` : ""}</p>
+      <div class="plan-row">${choices}</div>
+      <p class="plan-note">${
+        spot.planned
+          ? `About ${minutes(spot.estimateMs)} of spotlights.`
+          : "Pick a number to see how long that takes."
+      }</p>
+    </div>`;
+}
+
+const minutes = (ms) => `${Math.round(ms / 60000)} minutes`;
 
 function silentSlide(view) {
   const secs = Math.ceil((view.remainingMs ?? 0) / 1000);
@@ -57,9 +88,12 @@ function silentSlide(view) {
 
 function announce(view) {
   // Misregistration used once, on the name.
+  const spot = view.spotlight ?? {};
   return el(`
     <section class="slide slide-turn">
-      <p class="turn-lead">Reading next</p>
+      <p class="turn-lead">${
+        spot.planned ? `Spotlight ${spot.index} of ${spot.planned}` : "Reading next"
+      }</p>
       <div class="turn-name">
         <span class="under" aria-hidden="true">${esc(view.readerName ?? "")}</span>
         <span class="over">${esc(view.readerName ?? "")}</span>
@@ -76,12 +110,19 @@ function cleanPassage(view) {
         <p class="host-eyebrow">WHAT IT ACTUALLY SAID</p>
         <p class="clean-text">${esc(view.clean ?? "")}</p>
         <button class="host-link host-next" data-act="next">Next reader</button>
+        <button class="host-quiet" data-act="stop">That's enough spotlights</button>
       </div>
     </section>
   `);
   node.querySelector('[data-act="next"]').addEventListener("click", () =>
     transport?.send({ type: "END_ROUND" })
   );
+  // Pacing is the facilitator's, not the plan's: they can stop the moment they
+  // judge the room has had enough, without waiting out the number they set.
+  node.querySelector('[data-act="stop"]').addEventListener("click", () => {
+    transport?.send({ type: "END_ROUND" });
+    transport?.send({ type: "END_SPOTLIGHTS" });
+  });
   return node;
 }
 
@@ -89,9 +130,15 @@ function roster(view) {
   if (!view.roster?.length) return "";
   // Names only. No roles, no counts split by role — this screen is projected to
   // the whole room, and anything role-shaped would disclose an opt-out to
-  // everybody at once.
+  // everybody at once. `volunteered` is the one exception, and it is not a
+  // role: it is a thing the person did on purpose to be seen doing.
   return `<ul class="roster">${view.roster
-    .map((r, i) => `<li><button class="roster-name${r.connected ? "" : " away"}" data-i="${i}">${esc(r.name)}</button></li>`)
+    .map(
+      (r, i) =>
+        `<li><button class="roster-name${r.connected ? "" : " away"}${
+          r.volunteered ? " willing" : ""
+        }" data-i="${i}">${esc(r.name)}</button></li>`
+    )
     .join("")}</ul>`;
 }
 
@@ -125,15 +172,33 @@ function render(view) {
   const node = lobby(view);
   const left = node.querySelector(".lobby-left");
   left.insertAdjacentHTML("beforeend", roster(view));
-  // The facilitator picks the person. Volunteers and the random draw are S14.
+  // The human owns who reads — named, or handed to chance. Which barrier they
+  // get is never on this screen: the app owns that.
   node.querySelector('[data-act="silent"]')?.addEventListener("click", () =>
     transport?.send({ type: "START_SILENT" })
   );
-  node.querySelectorAll(".roster-name").forEach((btn) =>
-    btn.addEventListener("click", () => {
-      transport?.send({ type: "START_ROUND", readerIndex: Number(btn.dataset.i) });
-    })
+  node.querySelector('[data-act="draw"]')?.addEventListener("click", () =>
+    transport?.send({ type: "START_ROUND", random: true })
   );
+  node.querySelectorAll(".plan-n").forEach((btn) =>
+    btn.addEventListener("click", () =>
+      transport?.send({ type: "SET_SPOTLIGHT_COUNT", count: Number(btn.dataset.count) })
+    )
+  );
+  // Once the spotlights are over the names stop being buttons. A control that
+  // is still there and silently does nothing is the same problem as an
+  // ineligible name in the list: the room watches the facilitator tap and sees
+  // the screen ignore them.
+  const spot = view.spotlight ?? {};
+  if (!(spot.ended || spot.done >= spot.max)) {
+    node.querySelectorAll(".roster-name").forEach((btn) =>
+      btn.addEventListener("click", () => {
+        transport?.send({ type: "START_ROUND", readerIndex: Number(btn.dataset.i) });
+      })
+    );
+  } else {
+    node.querySelectorAll(".roster-name").forEach((btn) => (btn.disabled = true));
+  }
   stage.replaceChildren(node);
 }
 

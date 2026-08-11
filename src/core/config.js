@@ -53,6 +53,11 @@ export const CONFIG = {
   },
   spotlight: {
     maxRounds: 8,
+    // What one spotlight actually costs the room: announce, read, the clean
+    // passage, and the beat of talk after it. The facilitator plans a slot
+    // against this number, so it is deliberately the honest figure rather than
+    // the reading time alone.
+    roundEstimateMs: 120_000,
   },
   motion: {
     respectReducedMotion: true,

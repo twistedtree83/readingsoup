@@ -75,15 +75,29 @@ function joinScreen() {
 }
 
 function lobby(view) {
-  return el(`
+  // The volunteer button is on every phone in the room, observer or not, and
+  // looks and behaves identically on all of them. A control that only some
+  // people can see is readable from the next seat along.
+  const node = el(`
     <div>
       <p class="eyebrow">${view.roomCode ? `ROOM ${esc(view.roomCode)}` : "CONNECTED"}</p>
       <h1 class="display">You're in${view.name ? `, ${esc(view.name)}` : ""}.</h1>
       <p class="lede">Nothing to do yet. Keep your phone in your hand and watch the screen at the front.</p>
+      ${
+        view.canVolunteer
+          ? view.volunteered
+            ? `<p class="helped">You're on the list. Nothing else to do.</p>`
+            : `<button class="btn btn-secondary" data-act="volunteer">I'll go</button>`
+          : ""
+      }
       <div class="spacer"></div>
       <div class="waiting-cards" aria-hidden="true"><i></i><i></i><i></i></div>
     </div>
   `);
+  node.querySelector('[data-act="volunteer"]')?.addEventListener("click", () =>
+    send({ type: "VOLUNTEER" })
+  );
+  return node;
 }
 
 function silent(view) {
