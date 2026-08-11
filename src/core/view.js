@@ -9,6 +9,8 @@
 
 import { fullDeck } from "./deck.js";
 import { byId } from "./passages.js";
+import { mangle, plain } from "./mangle.js";
+import { CONFIG } from "./config.js";
 import { ROLES } from "./session.js";
 import {
   CARD_LABELS,
@@ -18,10 +20,48 @@ import {
   IMPLEMENTED,
 } from "./conditions.js";
 
-export function viewFor(state, participantId) {
+export function viewFor(state, participantId, config) {
   const me = state.participants?.[participantId];
 
   if (me?.role === ROLES.HOST) return hostView(state);
+  if (state.phase === "silent") {
+    const passage = byId(state.silent.passageId);
+    const condition = state.silent.assigned[participantId];
+
+    // An observer gets the SAME passage rendered clean, with a prompt to read it
+    // and then watch the room. Head down over a phone, physically
+    // indistinguishable from everyone else — an observer sitting with nothing
+    // to do discloses through body language what the app keeps private. It is
+    // also useful: they get the baseline at normal difficulty.
+    if (!condition) {
+      const clean = plain(passage.text);
+      return {
+        phase: "silent",
+        mode: state.mode,
+        role: me?.role ?? "spectator",
+        passageId: passage.id,
+        observerCover: true,
+        tokens: clean.tokens,
+        render: clean.render,
+        remainingMs: state.silent.remainingMs,
+      };
+    }
+
+    const rendered = mangle(passage.text, condition, config ?? CONFIG, {
+      seed: state.silent.seed,
+      reducedMotion: state.reducedMotion === true,
+    });
+    return {
+      phase: "silent",
+      mode: state.mode,
+      role: me?.role ?? "participant",
+      passageId: passage.id,
+      tokens: rendered.tokens,
+      render: rendered.render,
+      remainingMs: state.silent.remainingMs,
+    };
+  }
+
   if (state.phase === "round") {
     const readerName = state.participants[state.round.reader]?.name;
 
@@ -140,6 +180,17 @@ export function rosterTokens(state) {
 }
 
 function hostView(state) {
+  if (state.phase === "silent") {
+    // A countdown and nothing else. No roster, no names, no progress per person.
+    return {
+      phase: "silent",
+      mode: state.mode,
+      role: ROLES.HOST,
+      remainingMs: state.silent.remainingMs,
+      finished: state.silent.finished,
+    };
+  }
+
   if (state.phase === "round") {
     return {
       phase: "round",

@@ -86,6 +86,36 @@ function lobby(view) {
   `);
 }
 
+function silent(view) {
+  const secs = Math.ceil((view.remainingMs ?? 0) / 1000);
+  const clock = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")}`;
+
+  const span = (t) => {
+    const shifted = t.offsetY || t.rotate;
+    const style = shifted
+      ? ` style="transform:translateY(${t.offsetY || 0}px) rotate(${t.rotate || 0}deg)"`
+      : "";
+    return `<span class="tok" data-id="${t.id}"${style}>${esc(t.text)}</span>`;
+  };
+  const tokens = view.tokens.map(span).join(view.render.wordGaps ? " " : "");
+
+  return el(`
+    <div>
+      <p class="eyebrow">${
+        view.observerCover ? "Read this, then look up" : "Read this to yourself"
+      }<span class="pos">${clock}</span></p>
+      <div class="passage" data-gaps="${view.render.wordGaps}"
+           style="letter-spacing:${view.render.letterSpacing};
+                  color:color-mix(in srgb, var(--ink) ${view.render.contrast * 100}%, var(--paper))">${tokens}</div>
+      <p class="note">${
+        view.observerCover
+          ? "Then look up and watch the room. Everyone has the same forty words."
+          : "Nobody is watching. Nothing is being timed."
+      }</p>
+    </div>
+  `);
+}
+
 function watching(view) {
   // Inverted to ink so it reads as a DIFFERENT MODE, not a disabled screen.
   // Waiting is the task here, not an absence of one.
@@ -223,6 +253,7 @@ function render(view) {
   app.replaceChildren(
     view.phase === "lobby" ? lobby(view) :
     view.phase === "catalogue" ? catalogue(view) :
+    view.phase === "silent" ? silent(view) :
     view.kind === "typing" ? typing(view) :
     view.watching ? watching(view) :
     view.tokens ? reading(view) :

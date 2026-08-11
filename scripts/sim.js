@@ -109,9 +109,30 @@ function assertNoPassageLeak(people, label) {
   for (const p of people) {
     for (const v of p.views) {
       if (v.reader === true || v.role === "host") continue;
+      // The silent round is the exception, by design: everybody has their own
+      // copy of the same passage at the same moment. There is no reader to be
+      // a non-reader of. The rule governs SPOTLIGHT rounds, where one person
+      // reads aloud and the room must not be able to read along.
+      if (v.phase === "silent") continue;
       const s = JSON.stringify(v);
       check(`${label}: non-reader received tokens`, !("tokens" in v), p.name);
       check(`${label}: non-reader view mentions a passage`, !/"text":/.test(s), p.name);
+    }
+  }
+}
+
+// What the silent round must still guarantee: your phone tells you nothing
+// about anyone else — not their condition, not their name, not their progress.
+function assertSilentTellsYouNothingAboutOthers(people, label) {
+  const names = people.map((p) => p.name);
+  for (const p of people) {
+    for (const v of p.views.filter((v) => v.phase === "silent")) {
+      const s = JSON.stringify(v);
+      for (const other of names.filter((n) => n !== p.name)) {
+        check(`${label}: a silent view names someone else`, !s.includes(`"${other}"`), `${p.name} sees ${other}`);
+      }
+      check(`${label}: a silent view carries an assignment map`, !/"assigned"/.test(s), p.name);
+      check(`${label}: a silent view names a condition`, !/"condition"/.test(s), p.name);
     }
   }
 }
@@ -185,6 +206,39 @@ async function runSize(url, size) {
   check(`${label}: headcount recovers`, host.last()?.headcount === size, `${host.last()?.headcount}`);
 
   assertNoPassageLeak(people, label);
+
+  // ---- the silent round: everyone at once, on the same words --------------
+  host.send({ type: "START_SILENT", durationMs: 4000 });
+  await wait(900);
+
+  const withCondition = people.filter((p) => p.role === "participant");
+  const cover = people.filter((p) => p.role === "observer");
+  const passageIds = new Set(people.map((p) => p.last()?.passageId).filter(Boolean));
+
+  check(`${label}: silent round did not start`, host.last()?.phase === "silent", `${host.last()?.phase}`);
+  check(`${label}: the room did not get ONE passage`, passageIds.size === 1, `${passageIds.size} distinct`);
+  check(`${label}: host countdown missing`, typeof host.last()?.remainingMs === "number");
+  check(`${label}: host slide shows a roster`, host.last()?.roster === undefined);
+
+  for (const p of withCondition) {
+    check(`${label}: an active participant got no passage`, Array.isArray(p.last()?.tokens), p.name);
+    check(`${label}: a turn was announced in the silent round`, !("readerName" in (p.last() ?? {})), p.name);
+  }
+  for (const p of cover) {
+    // Cover, not exclusion: the same passage, rendered clean.
+    check(`${label}: observer got no cover passage`, Array.isArray(p.last()?.tokens), p.name);
+    check(`${label}: observer cover was not clean`, p.last()?.render?.wordGaps === true && p.last()?.render?.contrast === 1, p.name);
+    check(`${label}: observer cover not flagged`, p.last()?.observerCover === true, p.name);
+  }
+
+  assertSilentTellsYouNothingAboutOthers(people, label);
+
+  // it must end on its own, and the room must be able to carry on
+  await wait(4200);
+  check(`${label}: countdown did not reach zero`, host.last()?.remainingMs === 0, `${host.last()?.remainingMs}`);
+  host.send({ type: "END_SILENT" });
+  await wait(500);
+  check(`${label}: END_SILENT did not return to the lobby`, host.last()?.phase === "lobby", `${host.last()?.phase}`);
 
   // ---- drive a real round through the real transport ----------------------
   // The unit suite proves the boundary in the core. This proves it on the wire.

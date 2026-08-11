@@ -27,11 +27,32 @@ function lobby(view) {
         </div>
         <p class="host-count">${countLine(view.headcount)}</p>
       </div>
+      <div class="lobby-actions">
+        <button class="host-link" data-act="silent">Start — everyone at once</button>
+      </div>
       <div class="lobby-right">
         <div class="qr"><img src="/qr.svg" alt="QR code to join" width="380" height="380"></div>
       </div>
     </section>
     `);
+}
+
+function silentSlide(view) {
+  const secs = Math.ceil((view.remainingMs ?? 0) / 1000);
+  return el(`
+    <section class="slide slide-silent">
+      <div>
+        <p class="turn-lead">${view.finished ? "Time." : "Everyone, at the same time."}</p>
+        <p class="countdown">${String(Math.floor(secs / 60))}:${String(secs % 60).padStart(2, "0")}</p>
+        <p class="turn-foot">${
+          view.finished
+            ? "Look up. Nobody had the same trouble."
+            : "Read it to yourself. Don't say anything yet."
+        }</p>
+      </div>
+      ${view.finished ? `<button class="host-link" data-act="end-silent">Carry on</button>` : ""}
+    </section>
+  `);
 }
 
 function announce(view) {
@@ -87,6 +108,15 @@ let lastView = null;
 function render(view) {
   lastView = view;
 
+  if (view.phase === "silent") {
+    const node = silentSlide(view);
+    node.querySelector('[data-act="end-silent"]')?.addEventListener("click", () =>
+      transport?.send({ type: "END_SILENT" })
+    );
+    stage.replaceChildren(node);
+    return;
+  }
+
   if (view.phase === "round") {
     stage.replaceChildren(view.finished ? cleanPassage(view) : announce(view));
     return;
@@ -96,6 +126,9 @@ function render(view) {
   const left = node.querySelector(".lobby-left");
   left.insertAdjacentHTML("beforeend", roster(view));
   // The facilitator picks the person. Volunteers and the random draw are S14.
+  node.querySelector('[data-act="silent"]')?.addEventListener("click", () =>
+    transport?.send({ type: "START_SILENT" })
+  );
   node.querySelectorAll(".roster-name").forEach((btn) =>
     btn.addEventListener("click", () => {
       transport?.send({ type: "START_ROUND", readerIndex: Number(btn.dataset.i) });

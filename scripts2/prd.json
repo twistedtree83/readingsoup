@@ -131,7 +131,7 @@
       "id": "S13",
       "issue": 36,
       "title": "The silent round",
-      "passes": false,
+      "passes": true,
       "afk": true,
       "depends": [
         "S12"

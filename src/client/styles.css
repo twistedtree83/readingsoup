@@ -340,3 +340,14 @@ button.roster-name { font-family: var(--font); background: var(--paper); color: 
   .cat-name { font-size: 36px; }
   .cat-desc { font-size: 20px; }
 }
+
+/* --- the silent round ---------------------------------------------------- */
+
+.slide-silent { flex-direction: column; align-items: flex-start; justify-content: center; background: var(--ink); color: var(--paper); }
+.slide-silent .turn-lead, .slide-silent .turn-foot { color: var(--paper); }
+.countdown {
+  font-size: clamp(120px, 22vw, 340px);
+  font-weight: 900; letter-spacing: -0.05em; line-height: 0.85;
+  margin: 2vh 0 4vh; font-variant-numeric: tabular-nums;
+}
+.lobby-actions { display: flex; align-items: center; }

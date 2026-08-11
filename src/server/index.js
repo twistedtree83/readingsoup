@@ -164,6 +164,12 @@ io.on("connection", (socket) => {
 
     // The host addresses participants by roster position. Resolving it here
     // keeps tokens off the projector entirely.
+    if (event.type === "START_SILENT" || event.type === "END_SILENT") {
+      if (state.participants[token]?.role !== "host") return;
+      dispatch({ type: event.type, durationMs: event.durationMs });
+      return void syncTicker();
+    }
+
     if (event.type === "END_ROUND") {
       if (state.participants[token]?.role !== "host") return;
       return void dispatch({ type: "END_ROUND" });
@@ -189,6 +195,22 @@ io.on("connection", (socket) => {
     }
   });
 });
+
+// The core never reads a clock; the shell ticks it. Runs only while a silent
+// round is live, so an idle room costs nothing.
+let ticker = null;
+function syncTicker() {
+  const shouldRun = state.phase === "silent" && !state.silent?.finished;
+  if (shouldRun && !ticker) {
+    ticker = setInterval(() => {
+      dispatch({ type: "TICK" });
+      if (state.silent?.finished) syncTicker();
+    }, 1000);
+  } else if (!shouldRun && ticker) {
+    clearInterval(ticker);
+    ticker = null;
+  }
+}
 
 httpServer.listen(PORT, () => {
   // Room lifecycle only. No participant data is ever logged, to disk or stdout.

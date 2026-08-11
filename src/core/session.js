@@ -4,7 +4,8 @@
 // a twenty-person session run deterministically in a unit test. Effects are
 // emitted as data and performed by the shell.
 
-import { CONDITIONS, FIXES, IMPLEMENTED, isTyping } from "./conditions.js";
+import { CONDITIONS, FIXES, IMPLEMENTED, isTyping, SILENT_POOL } from "./conditions.js";
+import { rng } from "./random.js";
 import { pick, pickDictation } from "./passages.js";
 import { resolve } from "./deck.js";
 import { mangle, plain } from "./mangle.js";
@@ -14,6 +15,16 @@ import { BANDS } from "./passages.js";
 const SHORT_BAND_CONDITIONS = [CONDITIONS.SOUP, CONDITIONS.MUDSOUND];
 
 export const ROLES = { HOST: "host", PARTICIPANT: "participant", OBSERVER: "observer" };
+
+function shuffled(list, seed) {
+  const next = rng(seed);
+  const out = [...list];
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(next() * (i + 1));
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
+}
 
 export function initialState() {
   return { mode: null, phase: "landing", participants: {}, round: null, tour: null };
@@ -160,6 +171,68 @@ export function reduce(state, event, config) {
         },
         effects,
       };
+    }
+
+    case "START_SILENT": {
+      // Everyone at once, privately. No turn announcements, no audience, nobody
+      // reading aloud — a participant's first encounter with their barrier is
+      // not in front of nineteen colleagues.
+      const seed = (state.seed ?? 1) + 7717;
+      const passage = pick(BANDS.FULL, state.usedPassages ?? [], seed);
+
+      // ONE passage for the entire room. Identical text, different reasons it
+      // is hard: that is what isolates the variable.
+      const active = Object.values(state.participants)
+        .filter((p) => p.role === ROLES.PARTICIPANT)
+        .sort((a, b) => a.order - b.order);
+
+      const pool = shuffled(SILENT_POOL, seed);
+      const assigned = {};
+      const participants = { ...state.participants };
+      active.forEach((p, i) => {
+        // Round-robin over a shuffled pool, so the spread is even by
+        // construction rather than by luck.
+        const condition = pool[i % pool.length];
+        assigned[p.token] = condition;
+        participants[p.token] = { ...p, seen: [...(p.seen ?? []), condition] };
+      });
+
+      const durationMs = Number(event.durationMs ?? config.round.silentRoundMs);
+      return {
+        state: {
+          ...state,
+          phase: "silent",
+          participants,
+          usedPassages: [...(state.usedPassages ?? []), passage.id],
+          silent: {
+            passageId: passage.id,
+            assigned,
+            seed,
+            startedAt: event.at,
+            durationMs,
+            remainingMs: durationMs,
+            finished: false,
+          },
+        },
+        effects,
+      };
+    }
+
+    case "TICK": {
+      if (state.phase !== "silent" || !state.silent) return { state, effects };
+      // Time is an input. The shell ticks; the core only ever subtracts.
+      const elapsed = Math.max(0, event.at - state.silent.startedAt);
+      const remainingMs = Math.max(0, state.silent.durationMs - elapsed);
+      if (remainingMs === state.silent.remainingMs && !remainingMs) return { state, effects };
+      return {
+        state: { ...state, silent: { ...state.silent, remainingMs, finished: remainingMs === 0 } },
+        effects,
+      };
+    }
+
+    case "END_SILENT": {
+      if (state.phase !== "silent") return { state, effects };
+      return { state: { ...state, phase: "lobby", silent: null }, effects };
     }
 
     case "START_ROUND": {

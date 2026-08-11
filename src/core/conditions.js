@@ -79,6 +79,11 @@ export const IMPLEMENTED = [
 // the input pipeline rather than in the render, so it takes a different path
 // through the reducer and is exempt from the render-differs-from-clean rule.
 export const TYPING = [CONDITIONS.BUTTERFINGERS];
+
+// The silent round draws from these only. Butterfingers is a typed task whose
+// contrast lands solely when the room watches it happen — done silently and
+// privately it is just a person typing badly at nobody.
+export const SILENT_POOL = IMPLEMENTED.filter((c) => !TYPING.includes(c));
 export const isTyping = (condition) => TYPING.includes(condition);
 
 // Conditions that alter the text content itself. For these the rendered text
