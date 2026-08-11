@@ -107,6 +107,19 @@ function eligibleReaders(state) {
     .sort((a, b) => a.order - b.order);
 }
 
+// Who the reader may hand the passage to. Observers are never called on, and
+// nobody meets the same barrier twice — the room would be watching a practised
+// performance, and the tagged colleague would learn nothing new.
+export function eligibleForTag(state) {
+  if (!state.round?.reader) return [];
+  return Object.values(state.participants ?? {})
+    .filter((p) => p.role === ROLES.PARTICIPANT)
+    .filter((p) => p.token !== state.round.reader)
+    .filter((p) => !(p.seen ?? []).includes(state.round.condition))
+    .sort((a, b) => a.order - b.order)
+    .map((p) => p.token);
+}
+
 // Take the barrier off. One path, whether a player found the card or the
 // facilitator handed it over — the reader's experience of being helped must not
 // depend on which.
@@ -516,6 +529,56 @@ export function reduce(state, event, config) {
       // wrong ones stay unattributed — see `view`.
       const helped = player ? { name: player.name, card: event.card } : undefined;
       return { state: { ...played, round: lift(played.round, played, config, helped) }, effects };
+    }
+
+    case "TAG_IN": {
+      // A move in the game, never giving up — and there is no accept step. An
+      // accept prompt is slow, and a decline would be a public refusal to help
+      // a struggling colleague, which is the exact opposite of the framing this
+      // activity needs. The reader taps a name and that phone is the reader.
+      if (!state.round?.reader || state.round.finished) return { state, effects };
+      if (event.token !== state.round.reader) return { state, effects };
+      if (!eligibleForTag(state).includes(event.to)) return { state, effects };
+
+      const from = state.participants[state.round.reader];
+      const to = state.participants[event.to];
+
+      // The seats swap and so do the hands. The table keeps exactly the same
+      // cards on it, which is what stops tagging in the one person holding the
+      // correct card from stranding the room with a barrier it cannot lift.
+      const participants = {
+        ...state.participants,
+        [from.token]: { ...from, hand: to.hand ?? [], spent: to.spent ?? [] },
+        [to.token]: {
+          ...to,
+          hand: [],
+          spent: [],
+          seen: [...(to.seen ?? []), state.round.condition],
+          spotlighted: true,
+        },
+      };
+
+      // Same passage, same barrier, from the START. Not a mid-passage handoff:
+      // fiddly to reason about and unreadable on a projector.
+      const round = {
+        ...state.round,
+        reader: event.to,
+        tagged: true,
+        ...(state.round.kind === "typing"
+          ? { intended: "", output: "" }
+          : {
+              rendered: mangle(lookupText(state.round.passageId), state.round.condition, config, {
+                seed: state.round.seed,
+                reducedMotion: state.reducedMotion === true,
+                accommodated: state.round.accommodated === true,
+              }),
+            }),
+      };
+
+      // startedAt, locked, plays and helped are all deliberately untouched: the
+      // watch window belongs to the round, not the reader, so cards stay live
+      // across the handover and the room does not get its three plays back.
+      return { state: { ...state, participants, round }, effects };
     }
 
     case "OVERRIDE": {

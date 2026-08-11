@@ -437,6 +437,50 @@ async function runSize(url, size) {
         }
       }
 
+      // ---- tag in, on the wire, once per size ------------------------------
+      // A move, not a surrender: the seat changes hands, the clock does not
+      // restart, and the room does not get its plays back.
+      if (i === 2 && (reader.last()?.tagList ?? []).length) {
+        // Let the window open first, so "cards stay live through the handover"
+        // is what is actually being asserted rather than "still locked either
+        // side of it".
+        await until(() => host.last()?.locked === false, WATCH_MS + 4000);
+        const before = {
+          plays: host.last()?.played ?? 0,
+          left: host.last()?.playsLeft,
+          target: reader.last().tagList[0].name,
+        };
+        reader.send({ type: "TAG_IN", index: 0 });
+        await until(() => host.last()?.readerName === before.target);
+
+        const now = people.find((p) => p.name === before.target);
+        check(`${label}: tagging in did not move the seat`, host.last()?.readerName === before.target,
+          `${host.last()?.readerName}`);
+        check(`${label}: the tagged colleague got no passage`, hasTask(now?.last()), before.target);
+        check(`${label}: the old reader was not moved to watching`, reader.last()?.watching === true,
+          reader.name);
+        check(`${label}: the tag reset the room's plays`, host.last()?.playsLeft === before.left,
+          `${before.left} -> ${host.last()?.playsLeft}`);
+        check(`${label}: the tag re-locked the cards`, host.last()?.locked === false);
+        check(`${label}: the handover was not announced as one`, host.last()?.tagged === true);
+        // The seats swapped, so the cards did too — the table still holds the
+        // one that lifts this barrier.
+        check(`${label}: the new reader kept a hand`, now?.last()?.hand === undefined, before.target);
+        check(`${label}: the old reader was left with nothing to play`,
+          Array.isArray(reader.last()?.hand), reader.name);
+
+        // Whoever is holding it now is the one who can finish it.
+        now.send({ type: "DONE" });
+        await until(() => typeof host.last()?.clean === "string");
+        check(`${label}: the tagged colleague could not finish`,
+          typeof host.last()?.clean === "string");
+        host.send({ type: "END_ROUND" });
+        const back = await until(() => host.last()?.phase === "lobby");
+        check(`${label}: END_ROUND did not return to the roster`, back, `${host.last()?.phase}`);
+        if (!back) break;
+        continue;
+      }
+
       reader.send({ type: "DONE" });
       await until(() => typeof host.last()?.clean === "string");
       check(`${label}: host gets the clean passage after done`, typeof host.last()?.clean === "string",

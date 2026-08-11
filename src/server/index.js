@@ -11,7 +11,7 @@ import { randomUUID } from "node:crypto";
 import { Server } from "socket.io";
 
 import { initialState, reduce } from "../core/session.js";
-import { viewFor, rosterTokens } from "../core/view.js";
+import { viewFor, rosterTokens, tagTokens } from "../core/view.js";
 import { CONFIG } from "../core/config.js";
 import { qrSvg, joinUrl } from "./qr.js";
 
@@ -194,6 +194,15 @@ io.on("connection", (socket) => {
 
       dispatch({ type: event.type, durationMs: event.durationMs, count: event.count });
       return void syncTicker();
+    }
+
+    // The reader picks a colleague by position in the list their own phone was
+    // given, for the same reason the host does: a token is an auth credential,
+    // and one on somebody else's phone would let them act as that person.
+    if (event.type === "TAG_IN") {
+      const to = tagTokens(state)[event.index];
+      if (!to) return;
+      return void dispatch({ type: "TAG_IN", token, to });
     }
 
     dispatch({ ...event, token, participantId: token });

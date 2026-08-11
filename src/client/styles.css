@@ -158,6 +158,23 @@ html, body {
 .card:disabled:not(.spent) { opacity: 0.55; }
 .note-lock { font-variant-numeric: tabular-nums; color: var(--red); font-weight: 800; }
 
+/* Tagging someone in. Folded away by default so it is never the loudest thing
+   on a struggling reader's screen, and worded as a move when it is opened. */
+.tag { margin: 18px 0 0; border: 4px solid var(--ink); padding: 14px 16px; }
+.tag-open {
+  font-weight: 900; font-size: 20px; letter-spacing: -0.02em;
+  cursor: pointer; list-style: none;
+}
+.tag-open::-webkit-details-marker { display: none; }
+.tag-open::after { content: " →"; }
+.tag[open] .tag-open::after { content: " ↓"; }
+.tag-names { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.tag-name {
+  font-family: var(--font); cursor: pointer;
+  background: var(--blue-tint); color: var(--ink); border: 3px solid var(--ink);
+  font-size: 19px; font-weight: 800; letter-spacing: -0.02em; padding: 10px 14px;
+}
+
 .helped {
   background: var(--red-tint);
   border: 4px solid var(--ink);

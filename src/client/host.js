@@ -92,7 +92,11 @@ function announce(view) {
   const node = el(`
     <section class="slide slide-turn">
       <p class="turn-lead">${
-        spot.planned ? `Spotlight ${spot.index} of ${spot.planned}` : "Reading next"
+        view.tagged
+          ? "Tagged in"
+          : spot.planned
+          ? `Spotlight ${spot.index} of ${spot.planned}`
+          : "Reading next"
       }</p>
       <div class="turn-name">
         <span class="under" aria-hidden="true">${esc(view.readerName ?? "")}</span>
@@ -117,6 +121,9 @@ function announce(view) {
 // Watch first, then act. The room is told what it is waiting for, because
 // sitting in that gap and noticing is the point rather than an obstacle to it.
 function roundFoot(view) {
+  // A handover is a move, and the slide says what happened rather than who
+  // stopped. The person who tagged out is not named.
+  if (view.tagged && !view.played) return "Same passage, same barrier, from the top.";
   if (view.locked) {
     return `Cards down. Just watch — ${Math.ceil((view.unlocksInMs ?? 0) / 1000)}s.`;
   }

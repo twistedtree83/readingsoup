@@ -171,7 +171,7 @@
       "id": "S17",
       "issue": 40,
       "title": "Tag in",
-      "passes": false,
+      "passes": true,
       "afk": true,
       "depends": [
         "S16"

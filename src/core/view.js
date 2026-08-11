@@ -11,7 +11,7 @@ import { fullDeck } from "./deck.js";
 import { byId } from "./passages.js";
 import { mangle, plain } from "./mangle.js";
 import { CONFIG } from "./config.js";
-import { ROLES } from "./session.js";
+import { ROLES, eligibleForTag } from "./session.js";
 import {
   CARD_LABELS,
   CONDITION_LABELS,
@@ -73,6 +73,14 @@ export function viewFor(state, participantId, config) {
         reader: true,
         readerName,
         finished: state.round.finished,
+        // Names, never tokens. A token on somebody else's phone would let them
+        // act as that person.
+        ...(state.round.reader && !state.round.finished
+          ? {
+              canTagIn: true,
+              tagList: tagTokens(state).map((t) => ({ name: state.participants[t].name })),
+            }
+          : {}),
       };
       // The barrier itself is never named to the reader. Knowing you have
       // Mudsound is knowing which card lifts it, and the diagnosis is the
@@ -226,6 +234,12 @@ export function rosterTokens(state) {
   return rosterOrder(state).map((p) => p.token);
 }
 
+// The same trick for the reader's tag-in list: their phone gets names in a
+// fixed order and sends back a position, and the shell resolves it.
+export function tagTokens(state) {
+  return eligibleForTag(state);
+}
+
 // Three across the room, not three each — so the number on a phone is the
 // room's number, identical on every screen.
 function playsLeft(state, config) {
@@ -273,6 +287,9 @@ function hostView(state, config) {
       roomCode: state.roomCode,
       readerName: state.participants[state.round.reader]?.name,
       finished: state.round.finished,
+      // The slide announces who is holding it now. The person who handed it
+      // over is not named: it was a move, and a move does not need a subject.
+      tagged: state.round.tagged === true,
       // The clean passage exists client-side in exactly one place: here, and
       // only once the round is over.
       clean: state.round.finished ? byId(state.round.passageId)?.text : undefined,

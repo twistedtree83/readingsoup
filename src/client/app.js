@@ -176,6 +176,7 @@ function typing(view) {
       <div class="hand">${hand(view)}</div>
       <div class="spacer"></div>
       <button class="btn btn-secondary" data-act="done">I've finished</button>
+      ${tagIn(view)}
     </div>
   `);
   const box = node.querySelector(".typebox");
@@ -214,6 +215,7 @@ function reading(view) {
       <div class="hand">${hand(view)}</div>
       <div class="spacer"></div>
       <button class="btn btn-secondary" data-act="done">I've finished reading</button>
+      ${tagIn(view)}
     </div>
   `);
   wireRound(node);
@@ -250,11 +252,31 @@ const hand = (view) =>
     })
     .join("");
 
+// Handing the passage on is a MOVE. Never "give up", never "I can't", never
+// anything that reads as failing in front of the room — the wording carries as
+// much of this as the mechanic does. And there is no accept step on the other
+// end: a decline would be a public refusal to help a struggling colleague.
+function tagIn(view) {
+  if (!view.canTagIn) return "";
+  if (!view.tagList?.length) return "";
+  return `
+    <details class="tag">
+      <summary class="tag-open">Tag someone in</summary>
+      <p class="note">They pick it up from the start, same passage. The cards stay live.</p>
+      <div class="tag-names">${view.tagList
+        .map((p, i) => `<button class="tag-name" data-i="${i}">${esc(p.name)}</button>`)
+        .join("")}</div>
+    </details>`;
+}
+
 function wireRound(node) {
   node.querySelectorAll(".card").forEach((btn) =>
     btn.addEventListener("click", () => send({ type: "PLAY_CARD", card: btn.dataset.card }))
   );
   node.querySelector('[data-act="done"]')?.addEventListener("click", () => send({ type: "DONE" }));
+  node.querySelectorAll(".tag-name").forEach((btn) =>
+    btn.addEventListener("click", () => send({ type: "TAG_IN", index: Number(btn.dataset.i) }))
+  );
 }
 
 function catalogue(view) {
