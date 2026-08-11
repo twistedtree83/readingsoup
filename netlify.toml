@@ -12,7 +12,14 @@
     X-Content-Type-Options = "nosniff"
     Referrer-Policy = "no-referrer"
 
-[[headers]]
-  for = "/src/*"
-  [headers.values]
-    Content-Type = "text/javascript; charset=utf-8"
+# There is deliberately NO Content-Type override here.
+#
+# There used to be one — `for = "/src/*"` forcing text/javascript, to be sure ES
+# modules were served as modules. Netlify's `*` matches across directories, so
+# it also caught src/client/styles.css and served the stylesheet as JavaScript.
+# Together with the nosniff above, that is fatal rather than cosmetic: the
+# browser refuses the file outright instead of guessing, and the whole site
+# renders unstyled. The scripts still run, so the page looks broken rather than
+# empty, which is why it was not obvious.
+#
+# Netlify sets the type from the file extension and gets both right on its own.
