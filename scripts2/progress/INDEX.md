@@ -5,7 +5,7 @@ Graph: `scripts2/prd.json` · Branch: `sprint/soup-mvp` · Parent: #1
 | ID | Issue | Task | AFK | Status |
 |----|-------|------|-----|--------|
 | S1  | #24 | Walking skeleton: solo mode, Soup, end to end | yes | **shipped** — [S1.md](S1.md) |
-| S2  | #25 | Connect hosting: Netlify site and Fly app | **no** | pending — human gate |
+| S2  | #25 | Connect hosting: Netlify site and Fly app | **no** | **shipped** by the human — [S2.md](S2.md) |
 | S3  | #26 | Condition: Fog | yes | **shipped** — [S3.md](S3.md) |
 | S4  | #27 | Condition: Slippery Floor | yes | **shipped** — [S4.md](S4.md) |
 | S5  | #28 | Condition: The Vanishing | yes | **shipped** — [S5.md](S5.md) |

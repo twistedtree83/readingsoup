@@ -16,7 +16,7 @@
       "id": "S2",
       "issue": 25,
       "title": "Connect hosting: Netlify site and Fly app",
-      "passes": false,
+      "passes": true,
       "afk": false,
       "gate": "ship-gate",
       "depends": [
