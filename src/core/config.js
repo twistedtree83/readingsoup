@@ -51,6 +51,12 @@ export const CONFIG = {
     playsPerRound: 3,
     silentRoundMs: 90_000,
   },
+  small: {
+    // A pair does three rounds each, so the room still meets every barrier
+    // between them. Above three the same game stops being interesting before
+    // the coverage argument runs out.
+    maxRoundsPerPerson: 3,
+  },
   cards: {
     // Where a room stops being small. Below this everyone holds the whole deck,
     // because scarcity in a small group does not create tension, it just leaves

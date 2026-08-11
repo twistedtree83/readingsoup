@@ -19,6 +19,12 @@ let identity = {};
 function lobby(view) {
   const spot = view.spotlight ?? {};
   const over = spot.ended || spot.done >= spot.max;
+  // One button. What it does is decided by how many people are playing, never
+  // by the facilitator having to notice the headcount and pick a shape.
+  const started = Boolean(view.mode);
+  // The tour runs on one phone, self-paced. There is nothing for the projector
+  // to drive, and offering a draw would interrupt it.
+  const rounds = started && view.mode !== "solo";
   return el(`
     <section class="slide slide-lobby">
       <div class="lobby-left">
@@ -30,9 +36,9 @@ function lobby(view) {
         <p class="host-count">${countLine(view.headcount)}</p>
       </div>
       <div class="lobby-actions">
-        <button class="host-link" data-act="silent">Start — everyone at once</button>
-        ${over ? "" : `<button class="host-link" data-act="draw">Draw at random</button>`}
-        ${plan(spot)}
+        ${started ? "" : `<button class="host-link" data-act="start">Start</button>`}
+        ${rounds && !over ? `<button class="host-link" data-act="draw">Draw at random</button>` : ""}
+        ${rounds ? plan(spot, view.mode) : ""}
       </div>
       <div class="lobby-right">
         <div class="qr"><img src="/qr.svg" alt="QR code to join" width="380" height="380"></div>
@@ -43,10 +49,20 @@ function lobby(view) {
 
 // The count is set against a live estimate, because the facilitator is planning
 // against a slot on a timetable, not against a number of rounds.
-function plan(spot) {
-  if (!spot.options) return "";
-  if (spot.ended || spot.done >= spot.max) {
-    return `<p class="plan-note">Spotlights finished — ${spot.done} of them.</p>`;
+function plan(spot, mode) {
+  if (spot.ended || spot.done >= (spot.max ?? 0)) {
+    return spot.done ? `<p class="plan-note">Rounds finished — ${spot.done} of them.</p>` : "";
+  }
+  // A small room's shape falls out of its headcount: there is nothing to pick,
+  // so it is stated rather than offered.
+  if (!spot.options) {
+    if (!spot.perPerson) return "";
+    return `
+      <div class="plan">
+        <p class="plan-label">Rounds${spot.done ? ` · ${spot.done} done` : ""}</p>
+        <p class="plan-note">${spot.perPerson === 1 ? "One round" : `${spot.perPerson} rounds`} each —
+          ${minutes(spot.estimateMs)} in all.</p>
+      </div>`;
   }
   const choices = spot.options
     .map(
@@ -232,8 +248,8 @@ function render(view) {
   left.insertAdjacentHTML("beforeend", roster(view));
   // The human owns who reads — named, or handed to chance. Which barrier they
   // get is never on this screen: the app owns that.
-  node.querySelector('[data-act="silent"]')?.addEventListener("click", () =>
-    transport?.send({ type: "START_SILENT" })
+  node.querySelector('[data-act="start"]')?.addEventListener("click", () =>
+    transport?.send({ type: "START_SESSION" })
   );
   node.querySelector('[data-act="draw"]')?.addEventListener("click", () =>
     transport?.send({ type: "START_ROUND", random: true })
@@ -248,7 +264,8 @@ function render(view) {
   // ineligible name in the list: the room watches the facilitator tap and sees
   // the screen ignore them.
   const spot = view.spotlight ?? {};
-  if (!(spot.ended || spot.done >= spot.max)) {
+  const pickable = view.mode && view.mode !== "solo" && !(spot.ended || spot.done >= spot.max);
+  if (pickable) {
     node.querySelectorAll(".roster-name").forEach((btn) =>
       btn.addEventListener("click", () => {
         transport?.send({ type: "START_ROUND", readerIndex: Number(btn.dataset.i) });

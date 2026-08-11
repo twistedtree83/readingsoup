@@ -163,6 +163,7 @@ io.on("connection", (socket) => {
   // a participant who could name themselves the next reader would be able to
   // put a colleague in the seat too.
   const HOST_ONLY = new Set([
+    "START_SESSION",
     "START_SILENT",
     "END_SILENT",
     "START_ROUND",

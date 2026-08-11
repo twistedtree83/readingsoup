@@ -11,7 +11,7 @@ import { fullDeck } from "./deck.js";
 import { byId } from "./passages.js";
 import { mangle, plain } from "./mangle.js";
 import { CONFIG } from "./config.js";
-import { ROLES, eligibleForTag } from "./session.js";
+import { ROLES, eligibleForTag, activeParticipants, roundBudget, roundsPerPerson } from "./session.js";
 import {
   CARD_LABELS,
   CONDITION_LABELS,
@@ -251,18 +251,29 @@ function playsLeft(state, config) {
 // of a spotlight — announce, read, clean passage, the beat of talk after it —
 // so eight rounds reads as the twenty minutes it actually is.
 function spotlightPlan(state, config) {
-  const { maxRounds, roundEstimateMs } = (config ?? CONFIG).spotlight;
+  const cfg = config ?? CONFIG;
+  const { maxRounds, roundEstimateMs } = cfg.spotlight;
   const s = state.spotlight ?? {};
+  const active = activeParticipants(state).length;
+  const group = active >= cfg.cards.groupFrom;
   return {
     planned: s.planned ?? null,
     done: s.done ?? 0,
-    max: maxRounds,
+    // A small room's ceiling is its own structure, not the group cap.
+    max: roundBudget(state, cfg),
     ended: s.ended === true,
     estimateMs: (s.planned ?? 0) * roundEstimateMs,
-    options: Array.from({ length: maxRounds }, (_, i) => ({
-      count: i + 1,
-      estimateMs: (i + 1) * roundEstimateMs,
-    })),
+    // The facilitator chooses a spotlight count in a group. In a small room the
+    // number of rounds falls out of the headcount, so there is nothing to pick.
+    // Nothing to state in a group (the facilitator picks) and nothing to state
+    // in the solo fallback (there are no rounds, there is a tour).
+    perPerson: group || active <= 1 ? undefined : roundsPerPerson(active, cfg),
+    options: group
+      ? Array.from({ length: maxRounds }, (_, i) => ({
+          count: i + 1,
+          estimateMs: (i + 1) * roundEstimateMs,
+        }))
+      : undefined,
   };
 }
 

@@ -222,7 +222,31 @@ async function runSize(url, size) {
 
   assertNoPassageLeak(people, label);
 
+  // ---- the mode follows the room ------------------------------------------
+  // One button. What happens next is decided by how many people are playing.
+  const active = people.filter((p) => p.role === "participant").length;
+  const expectedMode = active >= 6 ? "group" : active <= 1 ? "solo" : "small";
+  host.send({ type: "START_SESSION" });
+  await until(() => Boolean(host.last()?.mode));
+  check(`${label}: the wrong mode for this room`, host.last()?.mode === expectedMode,
+    `${host.last()?.mode}, expected ${expectedMode} for ${active} active`);
+
+  // A room that falls back to solo must be indistinguishable from a room that
+  // was always one person. No screen may say why, and nothing may name a role.
+  for (const p of [host, ...people]) {
+    const text = JSON.stringify(p.last() ?? {}).toLowerCase();
+    for (const tell of ["fallback", "not enough", "waiting for", "too few", "only one"]) {
+      check(`${label}: a screen explained the group size`, !text.includes(tell), `${p.name}: ${tell}`);
+    }
+  }
+
+  check(`${label}: a room below six was sent to a silent round`,
+    expectedMode === "group" || host.last()?.phase !== "silent", `${host.last()?.phase}`);
+
   // ---- the silent round: everyone at once, on the same words --------------
+  // Driven explicitly at every size, including the ones START_SESSION would not
+  // send there: it is the same code whoever is in the room, and the assertions
+  // below are the strongest ones the harness has.
   host.send({ type: "START_SILENT", durationMs: 4000 });
   await until(() => people.every((p) => Array.isArray(p.last()?.tokens)) && host.last()?.phase === "silent");
 

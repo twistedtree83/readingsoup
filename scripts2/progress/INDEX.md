@@ -22,7 +22,7 @@ Graph: `scripts2/prd.json` · Branch: `sprint/soup-mvp` · Parent: #1
 | S16 | #39 | Round pacing: watch window, play cap, facilitator override | yes | **shipped** — [S16.md](S16.md) |
 | S17 | #40 | Tag in | yes | **shipped** — [S17.md](S17.md) |
 | S18 | #41 | True handovers: scribe and read it to them | yes | pending |
-| S19 | #42 | Group-size modes and the silent solo fallback | yes | pending |
+| S19 | #42 | Group-size modes and the silent solo fallback | yes | **shipped** — [S19.md](S19.md) |
 | S20 | #43 | Reveal and debrief | yes | pending |
 | S21 | #44 | Late joiners and mid-session opt-out | yes | pending |
 | S22 | #45 | Resilience: wake lock, crash snapshot, host takeover | yes | pending |

@@ -193,7 +193,7 @@
       "id": "S19",
       "issue": 42,
       "title": "Group-size modes and the silent solo fallback",
-      "passes": false,
+      "passes": true,
       "afk": true,
       "depends": [
         "S16"

@@ -148,18 +148,48 @@ function watchRemaining(state, at, config) {
   return Math.max(0, length - Math.max(0, at - state.round.startedAt));
 }
 
-function canSpotlight(state, config) {
-  const { done, ended } = spotlightOf(state);
-  return !ended && done < config.spotlight.maxRounds;
+// Group size is a first-class variable, so the shape of the session is derived
+// from it rather than chosen. One active participant is not an error state: it
+// is solo, and it must arrive there without anybody being told why.
+export function activeParticipants(state) {
+  return Object.values(state.participants ?? {}).filter((p) => p.role === ROLES.PARTICIPANT);
 }
 
-// Chance, but not the kind that calls the same person twice while somebody else
-// never goes. Anyone yet to read is drawn from first.
+export function modeFor(state, config) {
+  const n = activeParticipants(state).length;
+  if (n >= config.cards.groupFrom) return "group";
+  return n <= 1 ? "solo" : "small";
+}
+
+// How many rounds this room has in it. Eight is the GROUP cap — it exists so a
+// twenty-person session ends before the room does, not to shorten a session of
+// five. A small room instead runs ceil(6 / n) each, capped at three, so the
+// people in it still meet every barrier between them.
+export function roundBudget(state, config) {
+  const n = activeParticipants(state).length;
+  if (n >= config.cards.groupFrom) return config.spotlight.maxRounds;
+  return n * roundsPerPerson(n, config);
+}
+
+export function roundsPerPerson(n, config) {
+  if (n < 1) return 0;
+  return Math.min(config.small.maxRoundsPerPerson, Math.ceil(IMPLEMENTED.length / n));
+}
+
+function canSpotlight(state, config) {
+  const { done, ended } = spotlightOf(state);
+  return !ended && done < roundBudget(state, config);
+}
+
+// Chance, but not the kind that calls the same person three times while
+// somebody else never goes. The draw is taken from whoever has read least so
+// far, which is also what makes "three rounds each" true in a small room rather
+// than merely intended.
 function drawReader(state) {
   const eligible = eligibleReaders(state);
   if (!eligible.length) return null;
-  const fresh = eligible.filter((p) => !p.spotlighted);
-  const pool = fresh.length ? fresh : eligible;
+  const fewest = Math.min(...eligible.map((p) => p.rounds ?? 0));
+  const pool = eligible.filter((p) => (p.rounds ?? 0) === fewest);
   const { done } = spotlightOf(state);
   return pool[Math.floor(rng((state.seed ?? 1) + done * 331)() * pool.length)].token;
 }
@@ -267,6 +297,42 @@ export function reduce(state, event, config) {
       };
     }
 
+    case "START_SESSION": {
+      // The facilitator presses one button. What happens is decided by how many
+      // people are actually playing — never by the facilitator having to notice
+      // and choose, which is the moment a small room gets it wrong.
+      const active = activeParticipants(state);
+      if (!active.length) return { state, effects };
+
+      if (active.length >= config.cards.groupFrom) {
+        return reduce({ ...state, mode: "group" }, { ...event, type: "START_SILENT" }, config);
+      }
+
+      if (active.length === 1) {
+        // Solo, silently. There is exactly one tour and one round, so this uses
+        // the same fields the standalone tour does — the same core behind a
+        // different transport, never a second implementation.
+        //
+        // Nothing is surfaced about WHY. A two-person session with one observer
+        // must be indistinguishable from a one-person session, on every screen,
+        // or the fallback becomes the disclosure the observer role exists to
+        // prevent.
+        const tour = { order: [...IMPLEMENTED], index: 0, usedPassages: [], seen: [] };
+        const next = { ...state, mode: "solo", phase: "reading", reader: active[0].token, tour };
+        next.round = beginRound(next, tour.order[0], config);
+        next.tour = { ...tour, usedPassages: [next.round.passageId], seen: [tour.order[0]] };
+        return { state: next, effects };
+      }
+
+      // Small: straight to rounds, no silent round. The plan is the structure
+      // rather than a facilitator's choice.
+      const planned = roundBudget(state, config);
+      return {
+        state: { ...state, mode: "small", spotlight: { ...spotlightOf(state), planned } },
+        effects,
+      };
+    }
+
     case "START_SILENT": {
       // Everyone at once, privately. No turn announcements, no audience, nobody
       // reading aloud — a participant's first encounter with their barrier is
@@ -340,9 +406,11 @@ export function reduce(state, event, config) {
     }
 
     case "SET_SPOTLIGHT_COUNT": {
-      // A plan, not a cap: the cap is eight and lives in START_ROUND, because a
-      // facilitator who talks past their own plan must not be blocked by it.
-      const max = config.spotlight.maxRounds;
+      // A plan, not a cap: the cap lives in START_ROUND, because a facilitator
+      // who talks past their own plan must not be blocked by it. But the plan
+      // is clamped to what this room can actually run — a number of rounds the
+      // session cannot reach is a promise to the facilitator that it breaks.
+      const max = roundBudget(state, config);
       const planned = Math.min(max, Math.max(1, Math.round(Number(event.count) || 0)));
       return { state: { ...state, spotlight: { ...spotlightOf(state), planned } }, effects };
     }
@@ -408,6 +476,7 @@ export function reduce(state, event, config) {
           ...who,
           seen: [...(who.seen ?? []), condition],
           spotlighted: true,
+          rounds: (who.rounds ?? 0) + 1,
           hand: [],
           spent: [],
         },
@@ -555,6 +624,7 @@ export function reduce(state, event, config) {
           spent: [],
           seen: [...(to.seen ?? []), state.round.condition],
           spotlighted: true,
+          rounds: (to.rounds ?? 0) + 1,
         },
       };
 
