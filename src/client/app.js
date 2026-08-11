@@ -172,15 +172,33 @@ function watching(view) {
 }
 
 function typing(view) {
+  // Three screens share this shape: typing it yourself, dictating it to a
+  // scribe, and being the scribe. The difference is who holds the keyboard.
   const node = el(`
     <div>
-      <p class="eyebrow">Type this out<span class="pos">${esc(view.position ?? "")}</span></p>
-      <div class="prompt">${esc(view.prompt)}</div>
-      <input class="typebox" type="text" autocomplete="off" autocapitalize="off"
-             autocorrect="off" spellcheck="false" aria-label="Type the sentence">
-      <p class="note">What is actually coming out:</p>
+      <p class="eyebrow">${
+        view.scribe ? "Type what you hear" : view.dictating ? "Say it out loud" : "Type this out"
+      }<span class="pos">${esc(view.position ?? "")}</span></p>
+      ${view.scribe ? "" : `<div class="prompt">${esc(view.prompt)}</div>`}
+      ${
+        view.dictating
+          ? ""
+          : `<input class="typebox" type="text" autocomplete="off" autocapitalize="off"
+             autocorrect="off" spellcheck="false" aria-label="Type the sentence">`
+      }
+      <p class="note">${
+        view.dictating ? "What is arriving:" : "What is actually coming out:"
+      }</p>
       <div class="output">${esc(view.output) || "&nbsp;"}</div>
-      ${view.accommodated ? `<p class="helped">A colleague is typing for you now.</p>` : ""}
+      ${
+        view.dictating
+          ? `<p class="helped">${esc(view.helperName)} is typing for you. Read it out; they will keep up.</p>`
+          : view.scribe
+          ? `<p class="helped">You are typing for ${esc(view.readerName)}. It comes out exactly as you type it.</p>`
+          : view.accommodated
+          ? `<p class="helped">A colleague is typing for you now.</p>`
+          : ""
+      }
       <div class="hand">${hand(view)}</div>
       <div class="spacer"></div>
       <button class="btn btn-secondary" data-act="done">I've finished</button>
@@ -189,13 +207,19 @@ function typing(view) {
     </div>
   `);
   const box = node.querySelector(".typebox");
-  box.value = view.intended;
-  box.addEventListener("input", () => send({ type: "TYPE", intended: box.value }));
+  if (box) {
+    box.value = view.intended ?? "";
+    box.addEventListener("input", () => send({ type: "TYPE", intended: box.value }));
+  }
   wireRound(node);
   return node;
 }
 
 function reading(view) {
+  // Also the screen of somebody who has just played "read it to them": the
+  // clean passage, on exactly one phone, with a name on it. Four cards remove a
+  // difficulty; this one hands over a person, and the screen has to say so.
+  //
   // Join with a real separator rather than a CSS pseudo-element, so the DOM
   // matches what the eye sees — copy/paste and assistive tech included.
   const span = (t) => {
@@ -215,15 +239,27 @@ function reading(view) {
 
   const node = el(`
     <div>
-      <p class="eyebrow">Read this out loud<span class="pos">${esc(view.position ?? "")}</span></p>
+      <p class="eyebrow">${
+        view.readingAloud ? `Read this to ${esc(view.readerName ?? "them")}` : "Read this out loud"
+      }<span class="pos">${esc(view.position ?? "")}</span></p>
       <div class="passage" data-gaps="${view.render.wordGaps}"
            style="letter-spacing:${view.render.letterSpacing};
                   color:color-mix(in srgb, var(--ink) ${view.render.contrast * 100}%, var(--paper))">${tokens}</div>
-      ${view.accommodated ? `<p class="helped">That helped. Finish the sentence and move on.</p>` : ""}
+      ${
+        view.listening
+          ? `<p class="helped">${esc(view.helperName)} is reading it to you. Follow along on here.</p>`
+          : view.accommodated
+          ? `<p class="helped">That helped. Finish the sentence and move on.</p>`
+          : ""
+      }
       ${view.hand?.length ? `<p class="note">Which of these would make this easier?</p>` : ""}
       <div class="hand">${hand(view)}</div>
       <div class="spacer"></div>
-      <button class="btn btn-secondary" data-act="done">I've finished reading</button>
+      ${
+        view.readingAloud
+          ? `<p class="note">Slowly, and let them follow. They can see their own copy.</p>`
+          : `<button class="btn btn-secondary" data-act="done">I've finished reading</button>`
+      }
       ${tagIn(view)}
       ${optOut(view)}
     </div>
@@ -359,6 +395,7 @@ function render(view) {
     view.phase === "catalogue" ? catalogue(view) :
     view.phase === "silent" ? silent(view) :
     view.kind === "typing" ? typing(view) :
+    view.readingAloud ? reading(view) :
     view.watching ? watching(view) :
     view.tokens ? reading(view) :
     lobby(view)

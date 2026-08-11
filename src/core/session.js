@@ -4,7 +4,7 @@
 // a twenty-person session run deterministically in a unit test. Effects are
 // emitted as data and performed by the shell.
 
-import { CONDITIONS, FIXES, IMPLEMENTED, isTyping, SILENT_POOL } from "./conditions.js";
+import { CONDITIONS, FIXES, IMPLEMENTED, isTyping, isHandover, SILENT_POOL } from "./conditions.js";
 import { rng } from "./random.js";
 import { pick, pickDictation, DEBRIEF } from "./passages.js";
 import { deal, fullDeck, resolve } from "./deck.js";
@@ -242,9 +242,13 @@ export function reduce(state, event, config) {
 
     case "TYPE": {
       if (!state.round || state.round.kind !== "typing") return { state, effects };
-      // In a room the keyboard belongs to the person in the seat. Solo has no
-      // reader token to check against, and no one else to check for.
-      if (state.round.reader && event.token !== state.round.reader) return { state, effects };
+      // In a room the keyboard belongs to the person in the seat — or, once a
+      // scribe has taken it, to them and nobody else. Solo has no reader token
+      // to check against, and no one else to check for.
+      const keyboard = state.round.helper?.kind === "scribe"
+        ? state.round.helper.token
+        : state.round.reader;
+      if (keyboard && event.token !== keyboard) return { state, effects };
       const intended = String(event.intended ?? "");
       // Give them a scribe: a colleague types for you, so the input comes out
       // clean. In solo that is simply the mangling stopping.
@@ -365,13 +369,21 @@ export function reduce(state, event, config) {
       if (!who) return { state, effects };
       // Never removed. Phones lock during every round; the participant is still
       // in the room even when their socket is not.
-      return {
-        state: {
-          ...state,
-          participants: { ...state.participants, [event.token]: { ...who, connected: false } },
-        },
-        effects,
+      const gone = {
+        ...state,
+        participants: { ...state.participants, [event.token]: { ...who, connected: false } },
       };
+
+      // A handover whose other half just vanished falls back to the version of
+      // the same accommodation that needs no person. Nobody is punished for a
+      // dropped phone: the help stays, it just stops being a colleague.
+      if (state.round?.helper?.token === event.token) {
+        return {
+          state: { ...gone, round: { ...lift(state.round, gone, config, state.round.helped), helper: null } },
+          effects,
+        };
+      }
+      return { state: gone, effects };
     }
 
     case "START_SESSION": {
@@ -724,6 +736,35 @@ export function reduce(state, event, config) {
       // Named, because the correct play is a generous act done in public. The
       // wrong ones stay unattributed — see `view`.
       const helped = player ? { name: player.name, card: event.card } : undefined;
+
+      // Four cards remove a difficulty from the environment. Two hand over a
+      // COLLEAGUE — the keyboard genuinely moves, or the words move towards
+      // somebody who reads them out. Solo has nobody to hand to, so there the
+      // same two cards behave environmentally.
+      if (player && isHandover(event.card)) {
+        return {
+          state: {
+            ...played,
+            round: {
+              ...played.round,
+              accommodated: true,
+              helped,
+              helper: {
+                token: player.token,
+                name: player.name,
+                card: event.card,
+                kind: played.round.kind === "typing" ? "scribe" : "aloud",
+              },
+              // The scribe starts from an empty box however far the reader got:
+              // the room is about to watch the sentence appear correctly, and it
+              // should appear from the beginning.
+              ...(played.round.kind === "typing" ? { intended: "", output: "" } : {}),
+            },
+          },
+          effects,
+        };
+      }
+
       return { state: { ...played, round: lift(played.round, played, config, helped) }, effects };
     }
 

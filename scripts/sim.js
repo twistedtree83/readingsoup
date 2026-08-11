@@ -40,6 +40,21 @@ async function until(predicate, timeout = 6000) {
   }
   return predicate();
 }
+// A socket emit is fire-and-forget, and a simulated phone mid-churn can drop
+// one. Re-send until the state it was meant to produce turns up.
+//
+// ONLY for events the reducer already treats as idempotent — END_ROUND is
+// guarded by the phase, OPT_OUT by the role, DONE just sets a flag. Sending
+// START_ROUND or PLAY_CARD twice would start a second round or spend a second
+// card, so those are left alone and asserted where they land.
+async function sendUntil(who, event, predicate, tries = 3) {
+  for (let i = 0; i < tries; i++) {
+    who.send(event);
+    if (await until(predicate, 2500)) return true;
+  }
+  return predicate();
+}
+
 const NAMES = "Priya Marcus Aisha Tom Bea Dev Noor Sam Rin Ola Kit Jo Ada Ravi Mei Ines Zed Fen Cal Uma".split(" ");
 
 // ---------------------------------------------------------------- the server
@@ -129,11 +144,33 @@ function assertNoPassageLeak(people, label) {
       // a non-reader of. The rule governs SPOTLIGHT rounds, where one person
       // reads aloud and the room must not be able to read along.
       if (v.phase === "silent") continue;
+      // So is the person holding "read it to them". They are not reading ALONG
+      // — they are the accommodation, reading it OUT to somebody who cannot.
+      // The rule that governs them instead is asserted separately: exactly one
+      // phone in the room may hold it, and it must be theirs.
+      if (v.readingAloud === true) continue;
       const s = JSON.stringify(v);
       check(`${label}: non-reader received tokens`, !("tokens" in v), p.name);
       check(`${label}: non-reader view mentions a passage`, !/"text":/.test(s), p.name);
     }
   }
+}
+
+// What replaces the leak rule for a handover: the clean passage reaches exactly
+// one phone that is not the reader's — the person who played the card — and it
+// only ever does so while they are holding it.
+function assertHandoverGoesToOnePhone(people, label) {
+  for (const p of people) {
+    for (const v of p.views) {
+      if (v.readingAloud !== true) continue;
+      check(`${label}: a phone was read-aloud without holding the card`,
+        Array.isArray(v.tokens) && v.render?.wordGaps === true, p.name);
+    }
+  }
+  // At any single moment, no two people are holding it.
+  const holdingNow = people.filter((p) => p.last()?.readingAloud === true);
+  check(`${label}: two phones hold the clean passage`, holdingNow.length <= 1,
+    holdingNow.map((p) => p.name).join(","));
 }
 
 // What the silent round must still guarantee: your phone tells you nothing
@@ -275,8 +312,8 @@ async function runSize(url, size) {
   // it must end on its own, and the room must be able to carry on
   await until(() => host.last()?.remainingMs === 0, 9000);
   check(`${label}: countdown did not reach zero`, host.last()?.remainingMs === 0, `${host.last()?.remainingMs}`);
-  host.send({ type: "END_SILENT" });
-  await until(() => [host, ...people].every((p) => p.last()?.phase === "lobby"));
+  await sendUntil(host, { type: "END_SILENT" },
+    () => [host, ...people].every((p) => p.last()?.phase === "lobby"));
   check(`${label}: END_SILENT did not return to the lobby`, host.last()?.phase === "lobby", `${host.last()?.phase}`);
 
   // ---- volunteering -------------------------------------------------------
@@ -317,8 +354,8 @@ async function runSize(url, size) {
 
   // ---- the spotlights -----------------------------------------------------
   // The unit suite proves the boundary in the core. This proves it on the wire.
-  host.send({ type: "SET_SPOTLIGHT_COUNT", count: 20 });
-  await until(() => host.last()?.spotlight?.planned > 0);
+  await sendUntil(host, { type: "SET_SPOTLIGHT_COUNT", count: 20 },
+    () => host.last()?.spotlight?.planned > 0);
   const plan = host.last()?.spotlight ?? {};
   check(`${label}: spotlight count was not capped at eight`, plan.planned === plan.max, `${plan.planned}`);
   check(`${label}: no time estimate for the plan`, plan.estimateMs > 0, `${plan.estimateMs}`);
@@ -494,19 +531,61 @@ async function runSize(url, size) {
           Array.isArray(reader.last()?.hand), reader.name);
 
         // Whoever is holding it now is the one who can finish it.
-        now.send({ type: "DONE" });
-        await until(() => typeof host.last()?.clean === "string");
+        await sendUntil(now, { type: "DONE" }, () => typeof host.last()?.clean === "string");
         check(`${label}: the tagged colleague could not finish`,
           typeof host.last()?.clean === "string");
-        host.send({ type: "END_ROUND" });
-        const back = await until(() => host.last()?.phase === "lobby");
+        const back = await sendUntil(host, { type: "END_ROUND" },
+          () => host.last()?.phase === "lobby");
         check(`${label}: END_ROUND did not return to the roster`, back, `${host.last()?.phase}`);
         if (!back) break;
         continue;
       }
 
-      reader.send({ type: "DONE" });
-      await until(() => typeof host.last()?.clean === "string");
+      // ---- the two handovers, on the wire ----------------------------------
+      // Played deliberately rather than hoped for: the coverage rule decides
+      // which barrier each round gets, so waiting for the right card to come up
+      // by chance would leave these assertions silently never running.
+      if (i !== 1 && table.length) {
+        await until(() => host.last()?.locked === false, WATCH_MS + 4000);
+        const want = reader.last()?.kind === "typing" ? "give-them-a-scribe" : "read-it-to-them";
+        const holder = table.find((p) => (p.last()?.hand ?? []).includes(want));
+        if (holder && host.last()?.playsLeft > 0) {
+          holder.send({ type: "PLAY_CARD", card: want });
+          await until(() => (holder.last()?.spent ?? []).includes(want), 2000);
+          // The helper's view and the reader's arrive on separate emits.
+          await until(() => reader.last()?.dictating === true || reader.last()?.listening === true, 2000);
+
+          if (holder.last()?.scribe) {
+            check(`${label}: the keyboard did not move`, holder.last()?.kind === "typing", holder.name);
+            check(`${label}: the reader was not asked to dictate`,
+              reader.last()?.dictating === true, name);
+            holder.send({ type: "TYPE", intended: "the wombat requires a permit" });
+            await until(() => host.last()?.typed === "the wombat requires a permit", 2000);
+            check(`${label}: the room could not see it arriving`,
+              host.last()?.typed === "the wombat requires a permit", `${host.last()?.typed}`);
+            check(`${label}: the target sentence was shown mid-round`,
+              host.last()?.clean === undefined);
+            check(`${label}: what the scribe typed came out mangled`,
+              reader.last()?.output === "the wombat requires a permit", `${reader.last()?.output}`);
+          } else if (holder.last()?.readingAloud) {
+            check(`${label}: the clean passage did not reach the helper`,
+              Array.isArray(holder.last()?.tokens), holder.name);
+            check(`${label}: the reader was not told somebody is reading to them`,
+              reader.last()?.listening === true, name);
+            // Being read to is a voice: their own screen stays as hard as it was.
+            check(`${label}: being read to re-rendered the reader's screen`,
+              reader.last()?.render?.contrast !== 1 || reader.last()?.render?.wordGaps !== true ||
+                reader.last()?.tokens !== undefined, name);
+            for (const p of table) {
+              if (p === holder) continue;
+              check(`${label}: a bystander was given the clean passage`,
+                !("tokens" in (p.last() ?? {})), p.name);
+            }
+          }
+        }
+      }
+
+      await sendUntil(reader, { type: "DONE" }, () => typeof host.last()?.clean === "string");
       check(`${label}: host gets the clean passage after done`, typeof host.last()?.clean === "string",
         `${typeof host.last()?.clean}`);
       for (const p of people) {
@@ -514,8 +593,8 @@ async function runSize(url, size) {
       }
 
       // The loop must loop. A single turn is not a turn loop.
-      host.send({ type: "END_ROUND" });
-      const returned = await until(() => host.last()?.phase === "lobby");
+      const returned = await sendUntil(host, { type: "END_ROUND" },
+        () => host.last()?.phase === "lobby");
       check(`${label}: END_ROUND did not return to the roster`, returned, `phase=${host.last()?.phase}`);
       // Stop here rather than driving the next round into a room that is still
       // in this one: every check after that would fail for the same reason and
@@ -535,8 +614,8 @@ async function runSize(url, size) {
     }
 
     // The facilitator can stop whenever they judge the room has had enough.
-    host.send({ type: "END_SPOTLIGHTS" });
-    await until(() => host.last()?.spotlight?.ended === true);
+    await sendUntil(host, { type: "END_SPOTLIGHTS" },
+      () => host.last()?.spotlight?.ended === true);
     check(`${label}: END_SPOTLIGHTS was not recorded`, host.last()?.spotlight?.ended === true);
     host.send({ type: "START_ROUND", random: true });
     await wait(400);
@@ -562,6 +641,27 @@ async function runSize(url, size) {
     intruder.socket.disconnect();
 
     assertNoPassageLeak(people, `${label}/round`);
+    assertHandoverGoesToOnePhone(people, label);
+
+    // Both handovers on the wire: the keyboard moving, and the words moving.
+    const scribe = people.find((p) => p.views.some((v) => v.scribe === true));
+    const aloud = people.find((p) => p.views.some((v) => v.readingAloud === true));
+    if (scribe) {
+      check(`${label}: a scribe took the keyboard with nobody dictating`,
+        people.some((p) => p.views.some((v) => v.dictating === true)), scribe.name);
+      check(`${label}: the scribe was shown the target sentence`,
+        scribe.views.filter((v) => v.scribe).every((v) => v.prompt === undefined), scribe.name);
+    }
+    if (aloud) {
+      check(`${label}: somebody read aloud to nobody`,
+        people.some((p) => p.views.some((v) => v.listening === true)), aloud.name);
+    }
+    // Eight rounds cover all six barriers, so both handovers must have had a
+    // turn. Anything less means these assertions quietly did not run.
+    if (size >= 8) {
+      check(`${label}: the scribe handover never happened`, Boolean(scribe));
+      check(`${label}: the read-aloud handover never happened`, Boolean(aloud));
+    }
 
     // ---- somebody walks in late, and somebody quietly steps out ------------
     if (size >= 2) {
@@ -589,8 +689,7 @@ async function runSize(url, size) {
       const hostBefore = JSON.stringify(host.last());
       const effectsBefore = people.flatMap((p) => p.effects).length;
 
-      quitter.send({ type: "OPT_OUT" });
-      await until(() => quitter.last()?.role === "observer");
+      await sendUntil(quitter, { type: "OPT_OUT" }, () => quitter.last()?.role === "observer");
       check(`${label}: opting out did not take`, quitter.last()?.role === "observer", quitter.name);
       check(`${label}: opting out moved the projector`, JSON.stringify(host.last()) === hostBefore);
       people.filter((p) => p !== quitter).forEach((p, i) => {
@@ -605,10 +704,12 @@ async function runSize(url, size) {
     // ---- the reveal ------------------------------------------------------
     // Complete however the session went: everybody active met a barrier, so
     // nobody comes up blank whether the facilitator ran two spotlights or ten.
-    host.send({ type: "START_REVEAL" });
-    await until(() => host.last()?.phase === "catalogue");
-    check(`${label}: the reveal did not open`, host.last()?.phase === "catalogue",
-      `${host.last()?.phase}`);
+    const opened = await sendUntil(host, { type: "START_REVEAL" },
+      () => host.last()?.phase === "catalogue");
+    check(`${label}: the reveal did not open`, opened, `${host.last()?.phase}`);
+    // Everything below reads the reveal. Without it they would all fail for the
+    // same reason and bury the one failure that actually happened.
+    if (!opened) return finish(host, people, KEEP);
     check(`${label}: the projector is missing the six`, host.last()?.catalogue?.length === 6);
 
     const revealJson = JSON.stringify(host.last() ?? {});
@@ -651,8 +752,14 @@ async function runSize(url, size) {
 
   }
 
+  return finish(host, people, KEEP);
+}
+
+// One exit, so a check that gives up early tears the room down the same way a
+// clean run does.
+async function finish(host, people, keep) {
   const phase = host.last()?.phase;
-  if (!KEEP) [host, ...people].forEach((p) => p.socket.disconnect());
+  if (!keep) [host, ...people].forEach((p) => p.socket.disconnect());
   await wait(200);
   return phase;
 }

@@ -21,7 +21,7 @@ Graph: `scripts2/prd.json` · Branch: `sprint/soup-mvp` · Parent: #1
 | S15 | #38 | Accommodation cards: dealing, play, resolution, attribution | yes | **shipped** — [S15.md](S15.md) |
 | S16 | #39 | Round pacing: watch window, play cap, facilitator override | yes | **shipped** — [S16.md](S16.md) |
 | S17 | #40 | Tag in | yes | **shipped** — [S17.md](S17.md) |
-| S18 | #41 | True handovers: scribe and read it to them | yes | pending |
+| S18 | #41 | True handovers: scribe and read it to them | yes | **shipped** — [S18.md](S18.md) |
 | S19 | #42 | Group-size modes and the silent solo fallback | yes | **shipped** — [S19.md](S19.md) |
 | S20 | #43 | Reveal and debrief | yes | **shipped** — [S20.md](S20.md) |
 | S21 | #44 | Late joiners and mid-session opt-out | yes | **shipped** — [S21.md](S21.md) |

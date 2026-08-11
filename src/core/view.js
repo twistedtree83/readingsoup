@@ -90,6 +90,44 @@ export function viewFor(state, participantId, config) {
 
   if (state.phase === "round") {
     const readerName = state.participants[state.round.reader]?.name;
+    const helper = state.round.helper;
+
+    // The half of a handover that is NOT the reader. Two cards hand you a
+    // colleague, and this is the colleague's screen: the keyboard, or the words.
+    if (helper && helper.token === participantId) {
+      const seat = {
+        phase: "round",
+        mode: state.mode,
+        role: me?.role ?? "participant",
+        readerName,
+        finished: state.round.finished,
+        canOptOut: canOptOut(me),
+        hand: me?.hand?.length ? me.hand : undefined,
+        spent: me?.hand?.length ? me.spent ?? [] : undefined,
+      };
+      if (helper.kind === "scribe") {
+        // They type what they hear. The target sentence is NOT on this screen:
+        // the reader is dictating it, and a scribe reading it off their own
+        // phone would be transcription rather than a handover.
+        return {
+          ...seat,
+          scribe: true,
+          kind: "typing",
+          intended: state.round.intended,
+          output: state.round.output,
+        };
+      }
+      // The one place a non-reader legitimately holds the passage, and it goes
+      // to exactly one phone: the person who played the card and is about to
+      // read it out loud to somebody who cannot.
+      const clean = plain(byId(state.round.passageId).text);
+      return {
+        ...seat,
+        readingAloud: true,
+        tokens: clean.tokens,
+        render: clean.render,
+      };
+    }
 
     if (state.reader === participantId || state.round.reader === participantId) {
       const seat = {
@@ -113,11 +151,17 @@ export function viewFor(state, participantId, config) {
       // Mudsound is knowing which card lifts it, and the diagnosis is the
       // game — for them at the reveal, and for the room right now.
       if (state.round.kind === "typing") {
+        // With a scribe the keyboard is gone from this phone, not merely
+        // hidden: they read the sentence out and watch it appear correctly in
+        // somebody else's hands.
+        const dictating = helper?.kind === "scribe";
         return {
           ...seat,
           kind: "typing",
           prompt: state.round.promptText,
-          intended: state.round.intended,
+          ...(dictating
+            ? { dictating: true, helperName: helper.name }
+            : { intended: state.round.intended }),
           output: state.round.output,
           accommodated: state.round.accommodated,
         };
@@ -127,6 +171,10 @@ export function viewFor(state, participantId, config) {
         tokens: state.round.rendered.tokens,
         render: state.round.rendered.render,
         accommodated: state.round.accommodated,
+        // Being read to is a voice, not a re-render: the words on this screen
+        // stay exactly as hard as they were, and the help arrives through the
+        // air. That is the whole distinction the two handover cards teach.
+        ...(helper?.kind === "aloud" ? { listening: true, helperName: helper.name } : {}),
       };
     }
 
@@ -381,6 +429,12 @@ function hostView(state, config) {
       // only once the round is over.
       clean: state.round.finished ? byId(state.round.passageId)?.text : undefined,
       canAdvance: state.round.finished,
+      // A person silently typing gives the room no signal at all, so a typed
+      // round is mirrored here character by character, at projector scale. No
+      // corrections, no squiggles, no highlighting — the whole point is that
+      // everyone sees exactly what is arriving, and the sentence it was meant
+      // to be stays hidden until the round is over.
+      typed: state.round.kind === "typing" ? state.round.output ?? "" : undefined,
       spotlight: { ...plan, index: plan.done + 1 },
       // Attribution, deliberately asymmetric. A correct play is named: it is a
       // generous act, done in public, and the room should see who made the

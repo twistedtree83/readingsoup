@@ -222,6 +222,32 @@ function helped(view) {
   `);
 }
 
+// What is actually arriving, character by character, at projector scale. No
+// corrections, no spellcheck squiggles, no highlighting: the room has to see
+// exactly what came out. The sentence it was meant to be stays hidden until the
+// round is over, then appears beside it.
+function mirror(view) {
+  const node = el(`
+    <section class="slide slide-mirror">
+      <div class="mirror-inner">
+        <p class="host-eyebrow">${view.finished ? "WHAT ARRIVED" : "WHAT IS ARRIVING"}</p>
+        <p class="typed-text" spellcheck="false">${esc(view.typed) || "&nbsp;"}</p>
+        ${
+          view.finished
+            ? `<p class="host-eyebrow">WHAT THEY WERE TYPING</p>
+               <p class="clean-text">${esc(view.clean ?? "")}</p>
+               <button class="host-link host-next" data-act="next">Next reader</button>`
+            : `<p class="host-note">${esc(view.readerName ?? "")} knows exactly what they want to say.</p>`
+        }
+      </div>
+    </section>
+  `);
+  node.querySelector('[data-act="next"]')?.addEventListener("click", () =>
+    transport?.send({ type: "END_ROUND" })
+  );
+  return node;
+}
+
 function cleanPassage(view) {
   const node = el(`
     <section class="slide slide-clean">
@@ -289,8 +315,11 @@ function render(view) {
   }
 
   if (view.phase === "round") {
+    // A person silently typing gives the room no signal at all, so a typed
+    // round takes the screen for itself the moment anything arrives.
+    const mirroring = typeof view.typed === "string" && (view.typed || view.finished);
     stage.replaceChildren(
-      view.finished ? cleanPassage(view) : view.helped ? helped(view) : announce(view)
+      mirroring ? mirror(view) : view.finished ? cleanPassage(view) : view.helped ? helped(view) : announce(view)
     );
     return;
   }

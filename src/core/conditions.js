@@ -86,6 +86,14 @@ export const TYPING = [CONDITIONS.BUTTERFINGERS];
 export const SILENT_POOL = IMPLEMENTED.filter((c) => !TYPING.includes(c));
 export const isTyping = (condition) => TYPING.includes(condition);
 
+// Four cards remove a difficulty from the environment. These two hand you a
+// COLLEAGUE — the keyboard genuinely moves, or somebody else reads it to you.
+// That distinction is the most transferable thing in the deck, and it is why
+// "Read it aloud" was renamed: the original was a no-op, since reading aloud is
+// already what every reader is doing.
+export const HANDOVERS = [CARDS.READ_IT_TO_THEM, CARDS.GIVE_THEM_A_SCRIBE];
+export const isHandover = (card) => HANDOVERS.includes(card);
+
 // Conditions that alter the text content itself. For these the rendered text
 // must never reconstruct the source. The rest are presentational: the words are
 // genuinely there, and the barrier is how they are shown. That distinction is

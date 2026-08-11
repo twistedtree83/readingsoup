@@ -181,7 +181,7 @@
       "id": "S18",
       "issue": 41,
       "title": "True handovers: scribe and read it to them",
-      "passes": false,
+      "passes": true,
       "afk": true,
       "depends": [
         "S6",
