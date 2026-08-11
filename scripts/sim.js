@@ -562,6 +562,54 @@ async function runSize(url, size) {
     intruder.socket.disconnect();
 
     assertNoPassageLeak(people, `${label}/round`);
+
+    // ---- the reveal ------------------------------------------------------
+    // Complete however the session went: everybody active met a barrier, so
+    // nobody comes up blank whether the facilitator ran two spotlights or ten.
+    host.send({ type: "START_REVEAL" });
+    await until(() => host.last()?.phase === "catalogue");
+    check(`${label}: the reveal did not open`, host.last()?.phase === "catalogue",
+      `${host.last()?.phase}`);
+    check(`${label}: the projector is missing the six`, host.last()?.catalogue?.length === 6);
+
+    const revealJson = JSON.stringify(host.last() ?? {});
+    for (const p of people) {
+      check(`${label}: the reveal named somebody`, !revealJson.includes(p.name), p.name);
+    }
+    check(`${label}: the projector marked somebody's barriers`,
+      (host.last()?.catalogue ?? []).every((c) => c.had === undefined));
+
+    await until(() => people.every((p) => Array.isArray(p.last()?.catalogue)));
+    for (const p of people) {
+      const cat = p.last()?.catalogue ?? [];
+      check(`${label}: a phone is missing the six`, cat.length === 6, p.name);
+      const marked = cat.filter((c) => c.had).length;
+      if (p.role === "observer") {
+        check(`${label}: an observer was marked with a barrier`, marked === 0, p.name);
+      } else if (expectedMode === "group") {
+        check(`${label}: an active participant came up blank`, marked > 0, p.name);
+      }
+      // Nobody's phone carries anybody else's history.
+      const mine = JSON.stringify(p.last());
+      for (const other of people) {
+        if (other === p) continue;
+        check(`${label}: a phone shows another person`, !mine.includes(other.name), `${p.name}/${other.name}`);
+      }
+    }
+
+    for (let i = 1; i <= 3; i++) {
+      host.send({ type: "NEXT_PROMPT" });
+      await until(() => host.last()?.debrief?.index === i);
+      check(`${label}: prompt ${i} did not come up`, host.last()?.debrief?.index === i,
+        `${host.last()?.debrief?.index}`);
+      check(`${label}: the six left the screen behind a question`,
+        host.last()?.catalogue?.length === 6);
+      for (const p of people) {
+        check(`${label}: a phone was given the facilitator's script`,
+          p.last()?.debrief === undefined, p.name);
+      }
+    }
+
   }
 
   const phase = host.last()?.phase;

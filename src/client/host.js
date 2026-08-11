@@ -39,6 +39,7 @@ function lobby(view) {
         ${started ? "" : `<button class="host-link" data-act="start">Start</button>`}
         ${rounds && !over ? `<button class="host-link" data-act="draw">Draw at random</button>` : ""}
         ${rounds ? plan(spot, view.mode) : ""}
+        ${started ? `<button class="host-quiet" data-act="reveal">Show the six</button>` : ""}
       </div>
       <div class="lobby-right">
         <div class="qr"><img src="/qr.svg" alt="QR code to join" width="380" height="380"></div>
@@ -83,6 +84,52 @@ function plan(spot, mode) {
 }
 
 const minutes = (ms) => `${Math.round(ms / 60000)} minutes`;
+
+// The payoff, in projector-scale type: six things you can do on Monday. Not one
+// name — attribution happens by show of hands, which keeps it voluntary.
+function reveal(view) {
+  const d = view.debrief;
+  const node = el(`
+    <section class="slide slide-reveal">
+      <div class="reveal-inner">
+        ${
+          d
+            ? `<div class="prompt-band">
+                 <p class="host-eyebrow">QUESTION ${d.index} OF ${d.total}</p>
+                 <p class="prompt-text">${esc(d.prompt)}</p>
+               </div>`
+            : `<p class="host-eyebrow">SIX THINGS YOU CAN DO ON MONDAY</p>`
+        }
+        <ul class="reveal-list">
+          ${view.catalogue
+            .map(
+              (c) => `
+            <li class="reveal-item">
+              <p class="reveal-name">${esc(c.label)}</p>
+              <p class="reveal-desc">${esc(c.description)}</p>
+              <span class="cat-card" data-card="${c.card}">${esc(c.cardLabel)}</span>
+            </li>`
+            )
+            .join("")}
+        </ul>
+        ${
+          d?.last
+            ? ""
+            : `<button class="host-link" data-act="prompt">${
+                d ? "Next question" : "Start the discussion"
+              }</button>`
+        }
+      </div>
+    </section>
+  `);
+  // The six stay on screen behind every question. They are the thing the room
+  // is meant to leave with, and a question that replaced them would put the
+  // answer out of sight exactly while people are reaching for it.
+  node.querySelector('[data-act="prompt"]')?.addEventListener("click", () =>
+    transport?.send({ type: "NEXT_PROMPT" })
+  );
+  return node;
+}
 
 function silentSlide(view) {
   const secs = Math.ceil((view.remainingMs ?? 0) / 1000);
@@ -236,6 +283,11 @@ function render(view) {
     return;
   }
 
+  if (view.phase === "catalogue") {
+    stage.replaceChildren(reveal(view));
+    return;
+  }
+
   if (view.phase === "round") {
     stage.replaceChildren(
       view.finished ? cleanPassage(view) : view.helped ? helped(view) : announce(view)
@@ -253,6 +305,12 @@ function render(view) {
   );
   node.querySelector('[data-act="draw"]')?.addEventListener("click", () =>
     transport?.send({ type: "START_ROUND", random: true })
+  );
+  // The reveal is complete whenever it is reached: everybody active met a
+  // barrier in the silent round, so ending after four spotlights or after
+  // twelve leaves nobody blank.
+  node.querySelector('[data-act="reveal"]')?.addEventListener("click", () =>
+    transport?.send({ type: "START_REVEAL" })
   );
   node.querySelectorAll(".plan-n").forEach((btn) =>
     btn.addEventListener("click", () =>

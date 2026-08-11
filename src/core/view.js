@@ -8,7 +8,7 @@
 //   3. No timing, score or ranking field exists to leak.
 
 import { fullDeck } from "./deck.js";
-import { byId } from "./passages.js";
+import { byId, DEBRIEF } from "./passages.js";
 import { mangle, plain } from "./mangle.js";
 import { CONFIG } from "./config.js";
 import { ROLES, eligibleForTag, activeParticipants, roundBudget, roundsPerPerson } from "./session.js";
@@ -150,18 +150,19 @@ export function viewFor(state, participantId, config) {
   if (state.phase === "catalogue") {
     // Every participant leaves knowing all six barriers exist. Only their own
     // are marked, and only on their own device — the app never publishes a
-    // person-to-condition map.
-    const mine = state.reader === participantId ? state.tour?.seen ?? [] : [];
+    // person-to-condition map. Attribution in the room happens by show of
+    // hands, which keeps disclosure voluntary and gives anyone who would rather
+    // not take part in it an ordinary way to decline.
+    //
+    // A room records what somebody met against their token; the self-paced tour
+    // records it against the tour. Both are that one person's own history.
+    const mine = [
+      ...(state.reader === participantId ? state.tour?.seen ?? [] : []),
+      ...(state.participants?.[participantId]?.seen ?? []),
+    ];
     return {
       ...base,
-      catalogue: IMPLEMENTED.map((condition) => ({
-        condition,
-        label: CONDITION_LABELS[condition],
-        description: CONDITION_DESCRIPTIONS[condition],
-        card: FIXES[condition],
-        cardLabel: CARD_LABELS[FIXES[condition]],
-        had: mine.includes(condition),
-      })),
+      catalogue: catalogue((condition) => mine.includes(condition)),
       cardLabels: CARD_LABELS,
     };
   }
@@ -210,6 +211,21 @@ export function viewFor(state, participantId, config) {
 // derived from who chose to observe. This screen is shown to the entire room at
 // once, so anything role-shaped on it would disclose an opt-out to everybody
 // simultaneously — the exact thing the observer role exists to prevent.
+// The six, always in the same order, always paired with the thing that lifts
+// them. `had` is a per-phone mark, so the projector passes a predicate that
+// leaves it off entirely rather than passing `false` — a screen the whole room
+// can see has no business carrying the field at all.
+function catalogue(had) {
+  return IMPLEMENTED.map((condition) => ({
+    condition,
+    label: CONDITION_LABELS[condition],
+    description: CONDITION_DESCRIPTIONS[condition],
+    card: FIXES[condition],
+    cardLabel: CARD_LABELS[FIXES[condition]],
+    ...(had ? { had: had(condition) } : {}),
+  }));
+}
+
 // Willing readers first, then join order, so the facilitator can pick someone
 // who wants it at a glance.
 //
@@ -278,6 +294,23 @@ function spotlightPlan(state, config) {
 }
 
 function hostView(state, config) {
+  if (state.phase === "catalogue") {
+    // Six items in projector-scale type, and not one name. The who-had-what
+    // slide this replaces could not satisfy observer invisibility — an observer
+    // is simply absent from such a list — and would not fit at twenty people.
+    const index = state.debrief ?? 0;
+    return {
+      phase: "catalogue",
+      mode: state.mode,
+      role: ROLES.HOST,
+      roomCode: state.roomCode,
+      catalogue: catalogue(null),
+      debrief: index > 0
+        ? { index, total: DEBRIEF.length, prompt: DEBRIEF[index - 1], last: index >= DEBRIEF.length }
+        : undefined,
+    };
+  }
+
   if (state.phase === "silent") {
     // A countdown and nothing else. No roster, no names, no progress per person.
     return {

@@ -6,7 +6,7 @@
 
 import { CONDITIONS, FIXES, IMPLEMENTED, isTyping, SILENT_POOL } from "./conditions.js";
 import { rng } from "./random.js";
-import { pick, pickDictation } from "./passages.js";
+import { pick, pickDictation, DEBRIEF } from "./passages.js";
 import { deal, fullDeck, resolve } from "./deck.js";
 import { mangle } from "./mangle.js";
 import { mangleTyped } from "./butterfingers.js";
@@ -427,6 +427,27 @@ export function reduce(state, event, config) {
           ...state,
           participants: { ...state.participants, [event.token]: { ...who, volunteered: true } },
         },
+        effects,
+      };
+    }
+
+    case "START_REVEAL": {
+      // Six things you can do on Monday, and on each phone the ones that person
+      // actually met. The room's own attribution happens by show of hands,
+      // which keeps disclosure voluntary — the app publishes no map.
+      if (state.phase === "catalogue") return { state, effects };
+      return {
+        state: { ...state, phase: "catalogue", round: null, silent: null, debrief: 0 },
+        effects,
+      };
+    }
+
+    case "NEXT_PROMPT": {
+      // One at a time, by hand, so the room finishes each before the next
+      // appears. It stops on the last rather than falling off the end.
+      if (state.phase !== "catalogue") return { state, effects };
+      return {
+        state: { ...state, debrief: Math.min(DEBRIEF.length, (state.debrief ?? 0) + 1) },
         effects,
       };
     }

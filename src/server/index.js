@@ -171,6 +171,8 @@ io.on("connection", (socket) => {
     "SET_SPOTLIGHT_COUNT",
     "END_SPOTLIGHTS",
     "OVERRIDE",
+    "START_REVEAL",
+    "NEXT_PROMPT",
   ]);
 
   socket.on("event", (event = {}) => {

@@ -141,6 +141,19 @@ export const DICTATION = [
   { id: "d-museum", text: "This exhibit is on loan to this very museum." },
 ];
 
+// Where the discussion starts. Advanced by hand, one at a time, so the room
+// finishes each one before the next appears.
+//
+// The third is the whole point of the activity and is deliberately last: the
+// first two are about the people in the room, and only once they have said what
+// it felt like does the question about a student land as recognition rather
+// than as a lesson.
+export const DEBRIEF = [
+  "What did you do when you got stuck?",
+  "What did you notice about the room while you were reading?",
+  "Which student does this remind you of?",
+];
+
 // Seeded so sessions vary, filtered so nothing repeats within one.
 function choose(pool, seed) {
   return pool[Math.floor(rng(seed)() * pool.length)];
