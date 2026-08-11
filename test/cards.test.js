@@ -11,6 +11,11 @@ import { CARDS, CARD_LABELS, FIXES, CONDITIONS } from "../src/core/conditions.js
 
 const step = (s, event) => reduce(s, { at: 0, ...event }, CONFIG).state;
 
+// Cards are locked for the watch window at the start of every round (S16), so
+// a play in these tests is timestamped after it. What is being tested here is
+// the dealing and the resolution, not the pacing.
+const PLAYABLE = CONFIG.round.watchWindowMs;
+
 function room(n, { observerEvery = 4, seed = 7 } = {}) {
   let s = step(initialState(), { type: "OPEN_ROOM", roomCode: "4417", token: "host", seed });
   for (let i = 0; i < n; i++) {
@@ -131,7 +136,7 @@ describe("playing a card", () => {
     const fix = FIXES[s.round.condition];
     const before = viewFor(s, reader);
 
-    s = step(s, { type: "PLAY_CARD", token: holderOf(s, fix), card: fix });
+    s = step(s, { type: "PLAY_CARD", at: PLAYABLE, token: holderOf(s, fix), card: fix });
     const after = viewFor(s, reader);
 
     expect(after.accommodated).toBe(true);
@@ -151,7 +156,7 @@ describe("playing a card", () => {
     const player = holderOf(s, wrongCard);
     const before = JSON.stringify(viewFor(s, reader));
 
-    s = step(s, { type: "PLAY_CARD", token: player, card: wrongCard });
+    s = step(s, { type: "PLAY_CARD", at: PLAYABLE, token: player, card: wrongCard });
 
     expect(JSON.stringify(viewFor(s, reader))).toBe(before);
     expect(viewFor(s, player).spent).toContain(wrongCard);
@@ -164,10 +169,10 @@ describe("playing a card", () => {
     const wrongCard = fullDeck().find((c) => c !== fix);
     const player = holderOf(s, wrongCard);
 
-    s = step(s, { type: "PLAY_CARD", token: player, card: wrongCard });
+    s = step(s, { type: "PLAY_CARD", at: PLAYABLE, token: player, card: wrongCard });
     const afterFirst = JSON.stringify(s.round);
     // Playing it again is not an error and not a second play — it is nothing.
-    s = step(s, { type: "PLAY_CARD", token: player, card: wrongCard });
+    s = step(s, { type: "PLAY_CARD", at: PLAYABLE, token: player, card: wrongCard });
     expect(JSON.stringify(s.round)).toBe(afterFirst);
     expect(s.participants[player].spent.filter((c) => c === wrongCard).length).toBe(1);
   });
@@ -178,7 +183,7 @@ describe("playing a card", () => {
     const withoutFix = others(s).find((t) => !s.participants[t].hand.includes(fix));
     expect(withoutFix).toBeTruthy();
 
-    s = step(s, { type: "PLAY_CARD", token: withoutFix, card: fix });
+    s = step(s, { type: "PLAY_CARD", at: PLAYABLE, token: withoutFix, card: fix });
     expect(viewFor(s, s.round.reader).accommodated).toBe(false);
     expect(s.participants[withoutFix].spent).toEqual([]);
   });
@@ -187,19 +192,19 @@ describe("playing a card", () => {
     let s = spotlight(room(8));
     const reader = s.round.reader;
     const fix = FIXES[s.round.condition];
-    s = step(s, { type: "PLAY_CARD", token: reader, card: fix });
+    s = step(s, { type: "PLAY_CARD", at: PLAYABLE, token: reader, card: fix });
     expect(viewFor(s, reader).accommodated).toBe(false);
   });
 
   test("once the barrier is lifted, nothing further lands on the reader", () => {
     let s = spotlight(room(8));
     const fix = FIXES[s.round.condition];
-    s = step(s, { type: "PLAY_CARD", token: holderOf(s, fix), card: fix });
+    s = step(s, { type: "PLAY_CARD", at: PLAYABLE, token: holderOf(s, fix), card: fix });
     const settled = JSON.stringify(viewFor(s, s.round.reader));
 
     const wrongCard = fullDeck().find((c) => c !== fix);
     const player = holderOf(s, wrongCard);
-    if (player) s = step(s, { type: "PLAY_CARD", token: player, card: wrongCard });
+    if (player) s = step(s, { type: "PLAY_CARD", at: PLAYABLE, token: player, card: wrongCard });
     expect(JSON.stringify(viewFor(s, s.round.reader))).toBe(settled);
   });
 });
@@ -213,7 +218,7 @@ describe("attribution is asymmetric", () => {
     const player = holderOf(s, fix);
 
     expect(viewFor(s, "host").helped).toBeUndefined();
-    s = step(s, { type: "PLAY_CARD", token: player, card: fix });
+    s = step(s, { type: "PLAY_CARD", at: PLAYABLE, token: player, card: fix });
 
     const v = viewFor(s, "host");
     expect(v.helped.name).toBe(s.participants[player].name);
@@ -227,7 +232,7 @@ describe("attribution is asymmetric", () => {
     const player = holderOf(s, wrongCard);
     const name = s.participants[player].name;
 
-    s = step(s, { type: "PLAY_CARD", token: player, card: wrongCard });
+    s = step(s, { type: "PLAY_CARD", at: PLAYABLE, token: player, card: wrongCard });
 
     const v = viewFor(s, "host");
     expect(v.helped).toBeUndefined();
@@ -267,7 +272,7 @@ describe("attribution is asymmetric", () => {
     );
     if (!observer) return; // this seed dealt it elsewhere; the rule is covered above
 
-    s = step(s, { type: "PLAY_CARD", token: observer, card: fix });
+    s = step(s, { type: "PLAY_CARD", at: PLAYABLE, token: observer, card: fix });
     const v = viewFor(s, "host");
     expect(v.helped.name).toBe(s.participants[observer].name);
     expect(JSON.stringify(v)).not.toContain("observer");

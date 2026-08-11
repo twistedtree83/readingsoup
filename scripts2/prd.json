@@ -161,7 +161,7 @@
       "id": "S16",
       "issue": 39,
       "title": "Round pacing: watch window, play cap, facilitator override",
-      "passes": false,
+      "passes": true,
       "afk": true,
       "depends": [
         "S15"

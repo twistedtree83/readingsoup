@@ -107,6 +107,34 @@ function eligibleReaders(state) {
     .sort((a, b) => a.order - b.order);
 }
 
+// Take the barrier off. One path, whether a player found the card or the
+// facilitator handed it over — the reader's experience of being helped must not
+// depend on which.
+function lift(round, state, config, helped) {
+  if (round.kind === "typing") {
+    // The scribe: a colleague types for you, so the input comes out clean.
+    return { ...round, accommodated: true, output: round.intended, helped };
+  }
+  return {
+    ...round,
+    accommodated: true,
+    helped,
+    rendered: mangle(lookupText(round.passageId), round.condition, config, {
+      seed: round.seed,
+      reducedMotion: state.reducedMotion === true,
+      accommodated: true,
+    }),
+  };
+}
+
+// How long the room still has to just watch. Solo has no window: it is
+// self-paced, and there is nobody to watch.
+function watchRemaining(state, at, config) {
+  if (typeof state.round?.startedAt !== "number") return 0;
+  const length = state.round.watchWindowMs ?? config.round.watchWindowMs;
+  return Math.max(0, length - Math.max(0, at - state.round.startedAt));
+}
+
 function canSpotlight(state, config) {
   const { done, ended } = spotlightOf(state);
   return !ended && done < config.spotlight.maxRounds;
@@ -272,8 +300,18 @@ export function reduce(state, event, config) {
     }
 
     case "TICK": {
-      if (state.phase !== "silent" || !state.silent) return { state, effects };
       // Time is an input. The shell ticks; the core only ever subtracts.
+      if (state.phase === "round" && state.round?.locked) {
+        // The tick drives the DISPLAY. Whether a card may actually be played is
+        // decided against the play's own timestamp, so a dropped tick can slow
+        // a countdown but can never open the window early.
+        const unlocksInMs = watchRemaining(state, event.at, config);
+        return {
+          state: { ...state, round: { ...state.round, unlocksInMs, locked: unlocksInMs > 0 } },
+          effects,
+        };
+      }
+      if (state.phase !== "silent" || !state.silent) return { state, effects };
       const elapsed = Math.max(0, event.at - state.silent.startedAt);
       const remainingMs = Math.max(0, state.silent.durationMs - elapsed);
       if (remainingMs === state.silent.remainingMs && !remainingMs) return { state, effects };
@@ -375,7 +413,23 @@ export function reduce(state, event, config) {
             ...spotlight,
             counts: { ...spotlight.counts, [condition]: (spotlight.counts[condition] ?? 0) + 1 },
           },
-          round: { ...round, reader, finished: false },
+          // The watch window starts now, and it is per ROUND: somebody who has
+          // already sat through one still waits through the next. You cannot
+          // accommodate what you have not noticed, and that noticing is the
+          // most transferable thing in the session.
+          // The window length travels on the round the way the silent round's
+          // duration does, so the harness can run a real one in a second
+          // without the core learning anything about being under test.
+          round: {
+            ...round,
+            reader,
+            finished: false,
+            startedAt: event.at,
+            watchWindowMs: Number(event.watchWindowMs ?? config.round.watchWindowMs),
+            locked: Number(event.watchWindowMs ?? config.round.watchWindowMs) > 0,
+            unlocksInMs: Number(event.watchWindowMs ?? config.round.watchWindowMs),
+            plays: 0,
+          },
         },
         effects,
       };
@@ -423,6 +477,16 @@ export function reduce(state, event, config) {
         if (!player || event.token === state.round.reader) return { state, effects };
         if (!(player.hand ?? []).includes(event.card)) return { state, effects };
         if ((player.spent ?? []).includes(event.card)) return { state, effects };
+        // Watch first. Without this a room of nineteen card-holders brute-forces
+        // the answer in seconds and the barrier dissolves before it has
+        // registered on anyone — including the reader, who then loses the
+        // experience the whole activity exists to create. A card refused by the
+        // clock is not spent; the player simply has not been allowed to act yet.
+        if (watchRemaining(state, event.at, config) > 0) return { state, effects };
+        // Three plays across the ROOM, not three each. One rule stops both the
+        // large-group stampede and a small-group player working through the
+        // whole deck — and it is what makes somebody say "wait, don't waste it".
+        if ((state.round.plays ?? 0) >= config.round.playsPerRound) return { state, effects };
       }
 
       const correct = resolve(event.card, state.round.condition);
@@ -451,31 +515,21 @@ export function reduce(state, event, config) {
       // Named, because the correct play is a generous act done in public. The
       // wrong ones stay unattributed — see `view`.
       const helped = player ? { name: player.name, card: event.card } : undefined;
+      return { state: { ...played, round: lift(played.round, played, config, helped) }, effects };
+    }
 
-      if (state.round.kind === "typing") {
-        return {
-          state: {
-            ...played,
-            round: { ...played.round, accommodated: true, output: played.round.intended, helped },
-          },
-          effects,
-        };
-      }
-
+    case "OVERRIDE": {
+      // The distress valve, and it is required rather than polish: three plays
+      // gone and none of them right leaves a reader stuck inside a barrier with
+      // no help coming. Available at any moment — inside the watch window, past
+      // the cap, whenever the facilitator judges it.
+      if (!state.round || state.round.accommodated) return { state, effects };
+      const card = FIXES[state.round.condition];
+      effects.push({ type: "ACCOMMODATED", condition: state.round.condition, card, granted: true });
+      // No name. Nobody found it, and the projector says what the card was
+      // rather than who failed to play it.
       return {
-        state: {
-          ...played,
-          round: {
-            ...played.round,
-            accommodated: true,
-            helped,
-            rendered: mangle(lookupText(played.round.passageId), played.round.condition, config, {
-              seed: played.round.seed,
-              reducedMotion: state.reducedMotion === true,
-              accommodated: true,
-            }),
-          },
-        },
+        state: { ...state, round: lift(state.round, state, config, { card, granted: true }) },
         effects,
       };
     }

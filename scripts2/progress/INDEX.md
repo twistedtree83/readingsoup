@@ -19,7 +19,7 @@ Graph: `scripts2/prd.json` · Branch: `sprint/soup-mvp` · Parent: #1
 | S13 | #36 | The silent round | yes | **shipped** — [S13.md](S13.md) |
 | S14 | #37 | Spotlight rounds: volunteers, random draw, coverage selection | yes | **shipped** — [S14.md](S14.md) |
 | S15 | #38 | Accommodation cards: dealing, play, resolution, attribution | yes | **shipped** — [S15.md](S15.md) |
-| S16 | #39 | Round pacing: watch window, play cap, facilitator override | yes | pending |
+| S16 | #39 | Round pacing: watch window, play cap, facilitator override | yes | **shipped** — [S16.md](S16.md) |
 | S17 | #40 | Tag in | yes | pending |
 | S18 | #41 | True handovers: scribe and read it to them | yes | pending |
 | S19 | #42 | Group-size modes and the silent solo fallback | yes | pending |

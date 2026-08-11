@@ -169,6 +169,7 @@ io.on("connection", (socket) => {
     "END_ROUND",
     "SET_SPOTLIGHT_COUNT",
     "END_SPOTLIGHTS",
+    "OVERRIDE",
   ]);
 
   socket.on("event", (event = {}) => {
@@ -180,15 +181,19 @@ io.on("connection", (socket) => {
       if (event.type === "START_ROUND") {
         // The host addresses participants by roster position. Resolving it here
         // keeps tokens off the projector entirely.
-        if (event.random) return void dispatch({ type: "START_ROUND", random: true });
-        const reader = rosterTokens(state)[event.readerIndex];
-        if (!reader) return;
-        return void dispatch({ type: "START_ROUND", reader });
+        const reader = event.random ? undefined : rosterTokens(state)[event.readerIndex];
+        if (!event.random && !reader) return;
+        dispatch({
+          type: "START_ROUND",
+          random: Boolean(event.random),
+          reader,
+          watchWindowMs: event.watchWindowMs,
+        });
+        return void syncTicker();
       }
 
       dispatch({ type: event.type, durationMs: event.durationMs, count: event.count });
-      if (event.type === "START_SILENT" || event.type === "END_SILENT") syncTicker();
-      return;
+      return void syncTicker();
     }
 
     dispatch({ ...event, token, participantId: token });
@@ -205,17 +210,23 @@ io.on("connection", (socket) => {
   });
 });
 
-// The core never reads a clock; the shell ticks it. Runs only while a silent
-// round is live, so an idle room costs nothing.
+// The core never reads a clock; the shell ticks it. Runs only while something
+// is actually counting down — a silent round, or a spotlight's watch window —
+// so an idle room costs nothing.
 let ticker = null;
+const counting = () =>
+  (state.phase === "silent" && !state.silent?.finished) ||
+  (state.phase === "round" && state.round?.locked === true);
+
 function syncTicker() {
-  const shouldRun = state.phase === "silent" && !state.silent?.finished;
-  if (shouldRun && !ticker) {
+  if (counting() && !ticker) {
+    // Twice a second while a window is open: a countdown that jumps two at a
+    // time in front of a room reads as a broken clock.
     ticker = setInterval(() => {
       dispatch({ type: "TICK" });
-      if (state.silent?.finished) syncTicker();
-    }, 1000);
-  } else if (!shouldRun && ticker) {
+      if (!counting()) syncTicker();
+    }, 500);
+  } else if (!counting() && ticker) {
     clearInterval(ticker);
     ticker = null;
   }

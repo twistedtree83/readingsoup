@@ -23,6 +23,8 @@ const args = new Map(
 const SIZES = (args.get("sizes") ?? "1,2,5,8,20").split(",").map(Number);
 const OBSERVER_RATIO = Number(args.get("observers") ?? 0.2);
 const KEEP = args.has("keep");
+// A real watch window, shortened the way the silent round's duration is.
+const WATCH_MS = 1000;
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -326,7 +328,10 @@ async function runSize(url, size) {
     let typedRounds = 0;
     for (let i = 0; i < rounds; i++) {
       // Chance picks the person; the app picks the barrier. Neither is on a phone.
-      host.send({ type: "START_ROUND", random: true });
+      // A real watch window, one second long. The duration travels on the event
+      // exactly as the silent round's does, so the core never learns it is
+      // under test — and the rule being exercised is the real one.
+      host.send({ type: "START_ROUND", random: true, watchWindowMs: WATCH_MS });
       await until(() => host.last()?.phase === "round", 1500);
       if (host.last()?.phase !== "round") break; // everyone has had all six
       ran++;
@@ -351,10 +356,7 @@ async function runSize(url, size) {
         check(`${label}: a non-reader was not told to watch`, v.watching === true, p.name);
       }
 
-      // ---- the cards, on the wire, once per size --------------------------
-      // The unit suite proves the correct card is always dealt. This proves the
-      // consequence: a room that plays everything it holds always gets the
-      // barrier off, and nobody but the reader ever sees the passage doing it.
+      // ---- the cards and the pacing, on the wire, once per size ------------
       const table = people.filter((p) => p !== reader);
       if (i === 1 && table.length) {
         const expectedHand = activeParticipants >= 6 ? 3 : 6;
@@ -364,8 +366,24 @@ async function runSize(url, size) {
         }
         check(`${label}: the reader was dealt cards`, reader.last()?.hand === undefined, name);
 
-        // One play first, on its own, so attribution can be read cleanly.
+        // Watch first. A card thrown at a locked round is refused and NOT
+        // spent — the player has not been allowed to act yet, so nothing of
+        // theirs has been used up.
         const first = table[0];
+        check(`${label}: the round did not start locked`, first.last()?.locked === true, first.name);
+        first.send({ type: "PLAY_CARD", card: first.last().hand[0] });
+        await wait(250);
+        check(`${label}: a card was played inside the watch window`,
+          (first.last()?.spent ?? []).length === 0 && host.last()?.played === 0,
+          `spent=${first.last()?.spent} played=${host.last()?.played}`);
+        check(`${label}: the reader can always finish, window or not`,
+          reader.last()?.finished !== true);
+
+        await until(() => first.last()?.locked === false, WATCH_MS + 4000);
+        check(`${label}: the watch window never opened`, first.last()?.locked === false,
+          `${first.last()?.unlocksInMs}`);
+
+        // Now it counts, and it is spent whether or not it was right.
         first.send({ type: "PLAY_CARD", card: first.last().hand[0] });
         await until(() => (first.last()?.spent ?? []).length > 0);
         check(`${label}: a played card was not spent`, (first.last()?.spent ?? []).length === 1, first.name);
@@ -378,22 +396,40 @@ async function runSize(url, size) {
           check(`${label}: a wrong play was not counted`, host.last()?.played >= 1, `${host.last()?.played}`);
         }
 
-        // Now everything else. Somebody holds the card that lifts this barrier.
+        // Three plays, ROOM-WIDE. Keep going with people who have not played at
+        // all and watch the room run out rather than the person.
         for (const p of table) {
           for (const card of p.last()?.hand ?? []) {
-            if (host.last()?.helped) break;
+            if (host.last()?.helped || host.last()?.playsLeft === 0) break;
             p.send({ type: "PLAY_CARD", card });
             await until(() => (p.last()?.spent ?? []).includes(card), 1500);
           }
+          if (host.last()?.helped || host.last()?.playsLeft === 0) break;
         }
-        await until(() => Boolean(host.last()?.helped));
-        check(`${label}: the room played every card and the barrier stayed on`,
-          Boolean(host.last()?.helped), `played=${host.last()?.played}`);
-        check(`${label}: the helper was not named`, table.some((p) => p.name === host.last()?.helped?.name),
-          `${host.last()?.helped?.name}`);
+        check(`${label}: the cap is not room-wide`,
+          host.last()?.helped || host.last()?.played === 3, `played=${host.last()?.played}`);
+
+        if (!host.last()?.helped) {
+          // Nobody found it and the plays are gone: the reader is stuck inside
+          // a barrier with no help coming. This is what the override is for.
+          const stuck = table.find((p) => (p.last()?.spent ?? []).length === 0);
+          if (stuck) {
+            stuck.send({ type: "PLAY_CARD", card: stuck.last().hand[0] });
+            await wait(250);
+            check(`${label}: a fourth play got through`, (stuck.last()?.spent ?? []).length === 0,
+              stuck.name);
+          }
+          host.send({ type: "OVERRIDE" });
+          await until(() => Boolean(host.last()?.helped));
+          check(`${label}: the override did not lift the barrier`, Boolean(host.last()?.helped));
+          check(`${label}: the override named somebody`, host.last()?.helped?.name === undefined,
+            `${host.last()?.helped?.name}`);
+        }
+
         check(`${label}: the reader was not accommodated`, reader.last()?.accommodated === true, name);
         check(`${label}: the barrier was still on the reader's screen`,
-          reader.last()?.render?.contrast === 1 && reader.last()?.render?.wordGaps === true,
+          reader.last()?.kind === "typing" ||
+            (reader.last()?.render?.contrast === 1 && reader.last()?.render?.wordGaps === true),
           JSON.stringify(reader.last()?.render));
 
         for (const p of table) {
@@ -411,9 +447,12 @@ async function runSize(url, size) {
 
       // The loop must loop. A single turn is not a turn loop.
       host.send({ type: "END_ROUND" });
-      await until(() => host.last()?.phase === "lobby");
-      check(`${label}: END_ROUND did not return to the roster`, host.last()?.phase === "lobby",
-        `phase=${host.last()?.phase}`);
+      const returned = await until(() => host.last()?.phase === "lobby");
+      check(`${label}: END_ROUND did not return to the roster`, returned, `phase=${host.last()?.phase}`);
+      // Stop here rather than driving the next round into a room that is still
+      // in this one: every check after that would fail for the same reason and
+      // bury the one failure that actually happened.
+      if (!returned) break;
     }
 
     check(`${label}: no spotlight round ran`, ran > 0, `${ran}`);

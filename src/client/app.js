@@ -150,13 +150,11 @@ function watching(view) {
           ? "Look up at the screen — you're about to find out what it actually said."
           : view.accommodated
           ? "The barrier is off their screen. Listen to the difference."
+          : view.playsLeft === 0
+          ? "The room is out of plays. Listen to the rest of it."
           : "You can't see their screen. Listen to how they're going, not what they're saying."
       }</p>
-      ${
-        dealt && !view.finished && !view.accommodated
-          ? `<p class="note">Which of these would make this easier?</p>`
-          : ""
-      }
+      ${dealt && !view.finished && !view.accommodated ? handLead(view) : ""}
       <div class="hand">${hand(view)}</div>
       ${dealt ? "" : `<div class="spacer"></div><div class="waiting-cards" aria-hidden="true"><i></i><i></i><i></i></div>`}
     </div>
@@ -222,6 +220,22 @@ function reading(view) {
   return node;
 }
 
+// Cards unlock PARTWAY THROUGH the round, not when the reader finishes. The
+// whole mechanic is watch-then-act, so the copy has to say a wait is coming to
+// an end rather than that the screen is switched off.
+function handLead(view) {
+  if (view.locked) {
+    const secs = Math.ceil((view.unlocksInMs ?? 0) / 1000);
+    return `<p class="note note-lock">Watch first. Cards unlock in ${secs}s.</p>`;
+  }
+  const left = view.playsLeft;
+  return `<p class="note">Which of these would make this easier?${
+    typeof left === "number"
+      ? ` <strong>${left === 1 ? "One play left" : `${left} plays left`}</strong>, for the whole room.`
+      : ""
+  }</p>`;
+}
+
 // A spent card stays on screen, greyed and dead. Removing it would hide what
 // the room has already tried, and trying the wrong thing is the part worth
 // remembering.
@@ -229,7 +243,7 @@ const hand = (view) =>
   (view.hand ?? [])
     .map((c) => {
       const spent = (view.spent ?? []).includes(c);
-      const dead = spent || view.accommodated === true;
+      const dead = spent || view.accommodated === true || view.locked === true || view.playsLeft === 0;
       return `<button class="card${spent ? " spent" : ""}" data-card="${c}"${
         dead ? " disabled" : ""
       }>${esc(CARD_LABELS[c])}</button>`;

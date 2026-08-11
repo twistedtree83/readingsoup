@@ -110,6 +110,9 @@ export function viewFor(state, participantId, config) {
       // Nothing here says which card is the right one. A player finds that out
       // by playing it, in front of everybody, which is the entire point.
       accommodated: state.round.accommodated === true,
+      locked: state.round.locked === true,
+      unlocksInMs: state.round.unlocksInMs ?? 0,
+      playsLeft: playsLeft(state, config),
     };
   }
 
@@ -223,6 +226,13 @@ export function rosterTokens(state) {
   return rosterOrder(state).map((p) => p.token);
 }
 
+// Three across the room, not three each — so the number on a phone is the
+// room's number, identical on every screen.
+function playsLeft(state, config) {
+  if (!state.round?.reader) return undefined;
+  return Math.max(0, (config ?? CONFIG).round.playsPerRound - (state.round.plays ?? 0));
+}
+
 // What the facilitator plans the slot against. The estimate is the whole cost
 // of a spotlight — announce, read, clean passage, the beat of talk after it —
 // so eight rounds reads as the twenty minutes it actually is.
@@ -278,8 +288,15 @@ function hostView(state, config) {
         ? {
             name: state.round.helped.name,
             cardLabel: CARD_LABELS[state.round.helped.card],
+            // Granted rather than found: the slide names the card and nobody
+            // else. Whose plays did not land is not the room's business.
+            granted: state.round.helped.granted === true,
           }
         : undefined,
+      locked: state.round.locked === true,
+      unlocksInMs: state.round.unlocksInMs ?? 0,
+      playsLeft: playsLeft(state, config),
+      canOverride: !state.round.accommodated,
     };
   }
 

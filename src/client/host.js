@@ -89,7 +89,7 @@ function silentSlide(view) {
 function announce(view) {
   // Misregistration used once, on the name.
   const spot = view.spotlight ?? {};
-  return el(`
+  const node = el(`
     <section class="slide slide-turn">
       <p class="turn-lead">${
         spot.planned ? `Spotlight ${spot.index} of ${spot.planned}` : "Reading next"
@@ -98,11 +98,31 @@ function announce(view) {
         <span class="under" aria-hidden="true">${esc(view.readerName ?? "")}</span>
         <span class="over">${esc(view.readerName ?? "")}</span>
       </div>
-      <p class="turn-foot">${
-        view.played ? playedLine(view.played) : "Everyone else: cards down, ears open."
-      }</p>
+      <p class="turn-foot">${roundFoot(view)}</p>
+      ${
+        view.canOverride
+          ? `<button class="host-quiet host-quiet-light" data-act="override">Give them the accommodation</button>`
+          : ""
+      }
     </section>
   `);
+  // The distress valve. Deliberately quiet: reaching for it is a judgement the
+  // facilitator makes about a person, not a button the slide is built around.
+  node.querySelector('[data-act="override"]')?.addEventListener("click", () =>
+    transport?.send({ type: "OVERRIDE" })
+  );
+  return node;
+}
+
+// Watch first, then act. The room is told what it is waiting for, because
+// sitting in that gap and noticing is the point rather than an obstacle to it.
+function roundFoot(view) {
+  if (view.locked) {
+    return `Cards down. Just watch — ${Math.ceil((view.unlocksInMs ?? 0) / 1000)}s.`;
+  }
+  if (view.playsLeft === 0) return `That's three. No more cards this round.`;
+  if (view.played) return `${playedLine(view.played)} ${view.playsLeft} left, between all of you.`;
+  return "Three plays, for the whole room. Make them count.";
 }
 
 // Wrong plays are counted, never named. Being generous and wrong about how to
@@ -113,14 +133,21 @@ const playedLine = (n) => (n === 1 ? "One card played." : `${n} cards played.`);
 // The moment the barrier comes off, and the only place a name is attached to a
 // card. Same slide furniture as the announce, so it lands as the same beat.
 function helped(view) {
+  // Granted rather than found: the card takes the big type and nobody is named.
+  // Whose plays did not land is not the room's business.
+  const headline = view.helped.granted ? view.helped.cardLabel : view.helped.name;
   return el(`
     <section class="slide slide-helped">
       <p class="turn-lead">That helped</p>
       <div class="turn-name">
-        <span class="under" aria-hidden="true">${esc(view.helped.name ?? "")}</span>
-        <span class="over">${esc(view.helped.name ?? "")}</span>
+        <span class="under" aria-hidden="true">${esc(headline ?? "")}</span>
+        <span class="over">${esc(headline ?? "")}</span>
       </div>
-      <p class="turn-foot">played <strong>${esc(view.helped.cardLabel ?? "")}</strong>.</p>
+      <p class="turn-foot">${
+        view.helped.granted
+          ? "Given, so the reading can go on."
+          : `played <strong>${esc(view.helped.cardLabel ?? "")}</strong>.`
+      }</p>
     </section>
   `);
 }

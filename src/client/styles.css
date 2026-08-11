@@ -155,7 +155,8 @@ html, body {
   background: var(--paper); color: var(--ink); border-color: var(--ink);
   opacity: 0.32; text-decoration: line-through;
 }
-.card:disabled:not(.spent) { opacity: 0.6; }
+.card:disabled:not(.spent) { opacity: 0.55; }
+.note-lock { font-variant-numeric: tabular-nums; color: var(--red); font-weight: 800; }
 
 .helped {
   background: var(--red-tint);
@@ -399,3 +400,7 @@ button.roster-name.willing { background: var(--red); color: var(--paper); border
   background: none; border: none; padding: 0; color: var(--ink);
   font-size: clamp(16px, 1.6vw, 26px); font-weight: 700; text-decoration: underline;
 }
+/* On the red announce slide. Still quiet: reaching for the override is a
+   judgement about a person, not a button the slide is built around. */
+.host-quiet-light { color: var(--paper); opacity: 0.75; }
+.slide-turn .turn-foot { font-variant-numeric: tabular-nums; }
