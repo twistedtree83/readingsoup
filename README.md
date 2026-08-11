@@ -77,24 +77,28 @@ Three properties fall out of that, and each is enforced rather than hoped for:
 
 ## Deployment
 
-Two halves, deliberately independent:
+**One URL, one host: Fly.** The Bun server serves the landing page, solo mode and
+the projector view, and holds the Socket.IO rooms. A facilitator sends people to
+one address and everything works from there.
 
-- **Static site + solo mode → Netlify.** No bundler, no transpiler — plain ES
-  modules served as authored. Needs no server at all.
-- **Realtime server → Fly.** Sleeps when idle, wakes on demand. Single machine
-  only: room state is in memory and there is exactly one room, so a second
-  machine would split the room in half.
+It sleeps when idle and wakes on demand, so a server used a few times a year
+costs essentially nothing. **Single machine only** — room state is in memory and
+there is exactly one room, so a second machine would split participants across
+two different rooms at random. Deploys pass `--ha=false`; the workflow does.
 
-If the game server is asleep, down, or never deployed, **the site still works
-completely** — which matters, because almost everyone who opens the link arrives
-alone.
+The static half can still be deployed on its own (`bun run build` assembles a
+`dist/` of plain ES modules with no bundler and no transpiler, and solo mode runs
+with no server at all). That was originally a second host on Netlify. It was
+dropped in favour of a single link: sharing two addresses for one activity is
+worse than a two-second cold start, and a facilitator standing in front of a room
+should have exactly one thing to say out loud.
 
 | Variable | Where | Purpose |
 |---|---|---|
 | `PUBLIC_URL` | server | What the QR encodes. The server cannot discover it. |
 | `PORT` | server | Defaults to 8787 locally, 8080 in the container. |
 | `CORS_ORIGIN` | server | Allows the static site to connect cross-origin. |
-| `SOUP_SERVER_URL` | static build | Where the client looks for the server. |
+| `SOUP_SERVER_URL` | static build | Only for a standalone static deploy. Empty means same-origin, which is what the single-host setup wants. |
 
 ## Design notes
 
