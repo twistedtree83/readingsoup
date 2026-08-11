@@ -40,6 +40,7 @@ function lobby(view) {
         ${rounds && !over ? `<button class="host-link" data-act="draw">Draw at random</button>` : ""}
         ${rounds ? plan(spot, view.mode) : ""}
         ${started ? `<button class="host-quiet" data-act="reveal">Show the six</button>` : ""}
+        <button class="host-quiet" data-act="end-session">End the session</button>
       </div>
       <div class="lobby-right">
         <div class="qr"><img src="/qr.svg" alt="QR code to join" width="380" height="380"></div>
@@ -127,6 +128,23 @@ function reveal(view) {
   // answer out of sight exactly while people are reaching for it.
   node.querySelector('[data-act="prompt"]')?.addEventListener("click", () =>
     transport?.send({ type: "NEXT_PROMPT" })
+  );
+  return node;
+}
+
+// A second browser on /host watches rather than drives. The facilitator sees
+// the room they would be taking over before they take it, and takes it on
+// purpose — nobody ends up running the session from a laptop and a phone at
+// once without noticing.
+function readOnlyBar() {
+  const node = el(`
+    <div class="host-watching">
+      <p>Another screen is running this room.</p>
+      <button class="host-link" data-act="takeover">Take over</button>
+    </div>
+  `);
+  node.querySelector('[data-act="takeover"]').addEventListener("click", () =>
+    transport?.send({ type: "TAKE_OVER" })
   );
   return node;
 }
@@ -300,28 +318,41 @@ let lastView = null;
 function render(view) {
   lastView = view;
 
+  // Read-only: show the room exactly as it is, with every control inert and one
+  // way to take it. Rendering a different screen would hide what is happening.
+  if (view.readOnly) {
+    mounting = true;
+    const shown = drive({ ...view, readOnly: false });
+    mounting = false;
+    shown.querySelectorAll("button, a.host-link").forEach((b) => {
+      b.disabled = true;
+      b.classList.add("inert");
+    });
+    stage.replaceChildren(shown, readOnlyBar());
+    return;
+  }
+  return drive(view);
+}
+
+function drive(view) {
+
   if (view.phase === "silent") {
     const node = silentSlide(view);
     node.querySelector('[data-act="end-silent"]')?.addEventListener("click", () =>
       transport?.send({ type: "END_SILENT" })
     );
-    stage.replaceChildren(node);
-    return;
+    return place(node);
   }
 
-  if (view.phase === "catalogue") {
-    stage.replaceChildren(reveal(view));
-    return;
-  }
+  if (view.phase === "catalogue") return place(reveal(view));
 
   if (view.phase === "round") {
     // A person silently typing gives the room no signal at all, so a typed
     // round takes the screen for itself the moment anything arrives.
     const mirroring = typeof view.typed === "string" && (view.typed || view.finished);
-    stage.replaceChildren(
+    return place(
       mirroring ? mirror(view) : view.finished ? cleanPassage(view) : view.helped ? helped(view) : announce(view)
     );
-    return;
   }
 
   const node = lobby(view);
@@ -341,6 +372,14 @@ function render(view) {
   node.querySelector('[data-act="reveal"]')?.addEventListener("click", () =>
     transport?.send({ type: "START_REVEAL" })
   );
+  // A clean room, straight away, so the activity can run twice in a day. Every
+  // phone from the last session is turned back into a stranger, which is the
+  // point rather than a side effect.
+  node.querySelector('[data-act="end-session"]')?.addEventListener("click", () => {
+    if (confirm("End this session and start a fresh room? Everyone will need to join again.")) {
+      transport?.send({ type: "END_SESSION" });
+    }
+  });
   node.querySelectorAll(".plan-n").forEach((btn) =>
     btn.addEventListener("click", () =>
       transport?.send({ type: "SET_SPOTLIGHT_COUNT", count: Number(btn.dataset.count) })
@@ -361,7 +400,15 @@ function render(view) {
   } else {
     node.querySelectorAll(".roster-name").forEach((btn) => (btn.disabled = true));
   }
-  stage.replaceChildren(node);
+  return place(node);
+}
+
+// One place the stage is written, so the read-only view can borrow a slide
+// without it being mounted twice.
+let mounting = false;
+function place(node) {
+  if (!mounting) stage.replaceChildren(node);
+  return node;
 }
 
 function offline() {

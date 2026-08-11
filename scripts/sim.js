@@ -14,6 +14,7 @@
 
 import { io } from "socket.io-client";
 import { spawn } from "node:child_process";
+import { rmSync } from "node:fs";
 
 const args = new Map(
   process.argv.slice(2).flatMap((a, i, all) =>
@@ -82,19 +83,28 @@ async function portFree(port) {
   }
 }
 
-async function bootServer() {
+// One crash mat per sized run, so a restart restores THIS room and no size
+// inherits the last one's.
+const snapshotFor = (port) => `/tmp/soup-sim-${port}.json`;
+
+async function bootServer(fixedPort) {
   for (let attempt = 0; attempt < 12; attempt++) {
-    const port = 9000 + Math.floor(Math.random() * 900);
-    if (!(await portFree(port))) continue;
+    const port = fixedPort ?? 9000 + Math.floor(Math.random() * 900);
+    if (!fixedPort && !(await portFree(port))) continue;
 
     const url = `http://localhost:${port}`;
+    // A fresh boot starts from nothing. Only a RESTART (fixedPort) is meant to
+    // find a crash mat waiting for it — otherwise a stale file from an earlier
+    // run on the same random port restores somebody else's room, and this
+    // run's facilitator arrives to a read-only view of it.
+    if (!fixedPort) rmSync(snapshotFor(port), { force: true });
     const proc = spawn("bun", ["run", "src/server/index.js"], {
-      env: { ...process.env, PORT: String(port), PUBLIC_URL: url },
+      env: { ...process.env, PORT: String(port), PUBLIC_URL: url, SOUP_SNAPSHOT: snapshotFor(port) },
       stdio: "ignore",
     });
 
     for (let i = 0; i < 50; i++) {
-      if (await isOurs(url)) return { url, proc };
+      if (await isOurs(url)) return { url, proc, port };
       await wait(120);
     }
     proc.kill();
@@ -191,7 +201,7 @@ function assertSilentTellsYouNothingAboutOthers(people, label) {
 
 // --------------------------------------------------------------- one session
 
-async function runSize(url, size) {
+async function runSize(url, size, proc, port) {
   const label = `${size}p`;
   const host = participant(url, { intent: "host" });
   await wait(400);
@@ -258,6 +268,39 @@ async function runSize(url, size) {
   check(`${label}: headcount recovers`, host.last()?.headcount === size, `${host.last()?.headcount}`);
 
   assertNoPassageLeak(people, label);
+
+  // ---- the crash mat -------------------------------------------------------
+  // An unhandled exception thirty minutes in must not lose the room in front of
+  // everybody. Kill the process outright and bring it back on the same port:
+  // the phones reconnect with the tokens they already hold and simply resume.
+  if (proc && size >= 2) {
+    const codeBefore = host.identity?.roomCode;
+    const rosterBefore = host.last()?.roster?.length;
+    // Count the views everybody has RECEIVED, so the checks below cannot pass
+    // against the last frame from before the crash — which is exactly how a
+    // room that never came back would look.
+    const seenBefore = [host, ...people].map((p) => p.views.length);
+    proc.kill("SIGKILL");
+    await wait(400);
+    const revived = await bootServer(port);
+    proc = revived.proc;
+    const backOnline = await until(
+      () => [host, ...people].every((p, i) => p.views.length > seenBefore[i]), 20_000);
+    check(`${label}: nobody reconnected after the crash`, backOnline);
+
+    check(`${label}: the room did not come back`, host.last()?.roster?.length === rosterBefore,
+      `${host.last()?.roster?.length}/${rosterBefore}`);
+    check(`${label}: the room came back with a different code`,
+      host.identity?.roomCode === codeBefore, `${host.identity?.roomCode} vs ${codeBefore}`);
+    check(`${label}: the facilitator came back read-only to their own room`,
+      host.last()?.readOnly === false, `readOnly=${host.last()?.readOnly}`);
+    for (const p of people) {
+      check(`${label}: a phone lost its name across the crash`, p.last()?.name === undefined ||
+        p.last()?.name === p.name, `${p.name} -> ${p.last()?.name}`);
+      check(`${label}: a phone was sent back to the join screen`,
+        p.last()?.joined !== false, p.name);
+    }
+  }
 
   // ---- the mode follows the room ------------------------------------------
   // One button. What happens next is decided by how many people are playing.
@@ -773,9 +816,9 @@ for (const size of SIZES) {
   // A fresh room per size. Disconnected participants are deliberately never
   // removed (phones lock every round) and there is no session reset until S22,
   // so a shared server would carry every previous size's people into the next.
-  const { url, proc } = fixedUrl ? { url: fixedUrl, proc: null } : await bootServer();
+  const { url, proc, port } = fixedUrl ? { url: fixedUrl, proc: null } : await bootServer();
   const before = failures.length;
-  const phase = await runSize(url, size);
+  const phase = await runSize(url, size, proc, port);
   const added = failures.length - before;
   console.log(`  ${String(size).padStart(2)} participants  phase=${phase ?? "?"}  ${added ? `✗ ${added} failure(s)` : "✓"}`);
   proc?.kill();

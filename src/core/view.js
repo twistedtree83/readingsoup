@@ -23,7 +23,7 @@ import {
 export function viewFor(state, participantId, config) {
   const me = state.participants?.[participantId];
 
-  if (me?.role === ROLES.HOST) return hostView(state, config);
+  if (me?.role === ROLES.HOST) return hostView(state, config, participantId);
 
   // A private catch-up outranks whatever the room is doing. Somebody who walked
   // in late gets their ninety seconds at their own desk while everyone else is
@@ -384,13 +384,20 @@ function spotlightPlan(state, config) {
   };
 }
 
-function hostView(state, config) {
+function hostView(state, config, token) {
+  // Every host screen carries this. Only the browser holding the room can
+  // drive it; a second one watches, and says plainly how to take it.
+  const chrome = {
+    readOnly: Boolean(state.hostToken) && token !== state.hostToken,
+    canTakeOver: Boolean(state.hostToken) && token !== state.hostToken,
+  };
   if (state.phase === "catalogue") {
     // Six items in projector-scale type, and not one name. The who-had-what
     // slide this replaces could not satisfy observer invisibility — an observer
     // is simply absent from such a list — and would not fit at twenty people.
     const index = state.debrief ?? 0;
     return {
+      ...chrome,
       phase: "catalogue",
       mode: state.mode,
       role: ROLES.HOST,
@@ -405,6 +412,7 @@ function hostView(state, config) {
   if (state.phase === "silent") {
     // A countdown and nothing else. No roster, no names, no progress per person.
     return {
+      ...chrome,
       phase: "silent",
       mode: state.mode,
       role: ROLES.HOST,
@@ -416,6 +424,7 @@ function hostView(state, config) {
   if (state.phase === "round") {
     const plan = spotlightPlan(state, config);
     return {
+      ...chrome,
       phase: "round",
       mode: state.mode,
       role: ROLES.HOST,
@@ -465,6 +474,7 @@ function hostView(state, config) {
   }));
 
   return {
+    ...chrome,
     phase: state.phase,
     mode: state.mode,
     role: ROLES.HOST,

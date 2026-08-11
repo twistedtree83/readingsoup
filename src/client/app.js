@@ -386,10 +386,46 @@ function scheduleExpiries(view) {
   }
 }
 
+// ------------------------------------------------------------- the wake lock
+
+// During a spotlight one person reads and everybody else listens with an idle
+// phone. iOS locks at thirty seconds by default — SHORTER than the watch window
+// — so without this the room's screens go dark in the middle of every round.
+//
+// Failure is silent by design: token identity already covers a locked phone, so
+// a browser without the API loses nothing but convenience, and a permission
+// prompt or an error message about it would be noise during an activity.
+let wakeLock = null;
+
+async function holdScreenAwake() {
+  if (wakeLock || !("wakeLock" in navigator)) return;
+  try {
+    wakeLock = await navigator.wakeLock.request("screen");
+    wakeLock.addEventListener("release", () => { wakeLock = null; });
+  } catch {
+    wakeLock = null;
+  }
+}
+
+function letScreenSleep() {
+  wakeLock?.release?.().catch(() => {});
+  wakeLock = null;
+}
+
+// A lock is dropped whenever the tab is backgrounded, which is exactly what
+// happens when a phone locks — so it has to be re-taken on the way back.
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible" && transport) holdScreenAwake();
+});
+
 // ------------------------------------------------------------------- driving
 
 function render(view) {
   if (awaitingJoin) return;
+  // Held for as long as somebody is in a room, released when the session ends
+  // and their phone is theirs again.
+  if (view.phase === "landing" || view.role === "spectator") letScreenSleep();
+  else holdScreenAwake();
   app.replaceChildren(
     view.phase === "lobby" ? lobby(view) :
     view.phase === "catalogue" ? catalogue(view) :

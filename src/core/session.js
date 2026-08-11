@@ -277,6 +277,42 @@ export function reduce(state, event, config) {
       };
     }
 
+    case "CLAIM_HOST": {
+      // A facilitator with a laptop and a phone must not end up driving the
+      // session from both. The first browser to claim it owns the room; a
+      // second is registered too, but read-only until it says otherwise.
+      const existing = state.participants[event.token];
+      if (existing && existing.role !== ROLES.HOST) return { state, effects };
+      return {
+        state: {
+          ...state,
+          hostToken: state.hostToken ?? event.token,
+          participants: {
+            ...state.participants,
+            [event.token]: { ...existing, token: event.token, role: ROLES.HOST, connected: true },
+          },
+        },
+        effects,
+      };
+    }
+
+    case "TAKE_OVER": {
+      if (state.participants[event.token]?.role !== ROLES.HOST) return { state, effects };
+      return { state: { ...state, hostToken: event.token }, effects };
+    }
+
+    case "END_SESSION": {
+      // Not a pause. Every token minted for this session stops meaning
+      // anything, so the room can be run again after lunch without yesterday's
+      // phones wandering back into it.
+      //
+      // Guarded here as well as in the shell. Everything else host-only is a
+      // control; this one throws the room away, and a single guard on the far
+      // side of a socket is a thin place for it to depend on.
+      if (event.token && event.token !== state.hostToken) return { state, effects };
+      return { state: initialState(), effects };
+    }
+
     case "JOIN": {
       if (!event.token) return { state, effects };
       const existing = state.participants[event.token];

@@ -14,6 +14,7 @@ import { initialState, reduce } from "../core/session.js";
 import { viewFor, rosterTokens, tagTokens } from "../core/view.js";
 import { CONFIG } from "../core/config.js";
 import { qrSvg, joinUrl } from "./qr.js";
+import * as snapshot from "./snapshot.js";
 
 const PORT = Number(process.env.PORT ?? 8787);
 const ROOT = fileURLToPath(new URL("../../", import.meta.url));
@@ -25,13 +26,16 @@ const CORS_ORIGIN = process.env.CORS_ORIGIN ?? "*";
 
 // ---------------------------------------------------------------- room state
 
-let state = initialState();
-let roomCode = "";
+// A room that was live when the process died comes back. Reconnecting phones
+// present the tokens they still hold and simply resume.
+let state = snapshot.load() ?? initialState();
+let roomCode = state.roomCode ?? "";
 
 function openRoom(hostToken) {
   roomCode = String(Math.floor(1000 + Math.random() * 9000));
   const seed = Math.floor(Math.random() * 1e9);
   state = reduce(state, { type: "OPEN_ROOM", roomCode, token: hostToken, at: Date.now(), seed }, CONFIG).state;
+  snapshot.save(state);
   return roomCode;
 }
 
@@ -43,6 +47,10 @@ const socketsByToken = new Map();
 function dispatch(event) {
   const { state: next, effects } = reduce(state, { ...event, at: Date.now() }, CONFIG);
   state = next;
+  // The mirror is written before anything is sent, so what comes back after a
+  // crash is at least as new as what the room last saw.
+  if (state.hostToken) snapshot.save(state);
+  else snapshot.clear();
   broadcast();
   // Effects are emitted by the core as data and performed here. Nothing uses
   // them yet, but dropping them silently would leave the round slices (S12+)
@@ -128,11 +136,16 @@ io.on("connection", (socket) => {
       // A room is NEVER destroyed by someone arriving at /host. A facilitator
       // refreshing must not end the session, and a participant who wanders onto
       // the host URL must not wipe the room out from under everybody.
-      // (S22 adds the read-only second-host view and explicit takeover.)
+      //
+      // A second browser gets its OWN host token and a read-only view of the
+      // room, with an explicit way to take it: a facilitator with a laptop and
+      // a phone must not end up driving the session from both at once.
       let hostToken;
       if (resumingHost) hostToken = presented;
-      else if (liveRoom) hostToken = state.hostToken;
-      else {
+      else if (liveRoom) {
+        hostToken = randomUUID();
+        dispatch({ type: "CLAIM_HOST", token: hostToken });
+      } else {
         hostToken = randomUUID();
         openRoom(hostToken);
       }
@@ -177,13 +190,33 @@ io.on("connection", (socket) => {
     "OVERRIDE",
     "START_REVEAL",
     "NEXT_PROMPT",
+    "END_SESSION",
   ]);
 
   socket.on("event", (event = {}) => {
     if (!token) return;
 
-    if (HOST_ONLY.has(event.type)) {
+    // Taking the room over is the one thing a read-only host may do.
+    if (event.type === "TAKE_OVER") {
       if (state.participants[token]?.role !== "host") return;
+      return void dispatch({ type: "TAKE_OVER", token });
+    }
+
+    if (HOST_ONLY.has(event.type)) {
+      // Host ROLE is not enough: only the browser actually holding the room
+      // drives it. The other one is watching.
+      if (state.participants[token]?.role !== "host" || token !== state.hostToken) return;
+
+      if (event.type === "END_SESSION") {
+        // A fresh room, straight away, so the activity can run twice in a day.
+        dispatch({ type: "END_SESSION", token });
+        snapshot.clear();
+        socketsByToken.clear();
+        attach(token);
+        openRoom(token);
+        socket.emit("identity", { token, roomCode, publicUrl: PUBLIC_URL, known: true });
+        return broadcast();
+      }
 
       if (event.type === "START_ROUND") {
         // The host addresses participants by roster position. Resolving it here

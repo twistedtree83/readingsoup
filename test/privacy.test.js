@@ -41,6 +41,33 @@ describe("privacy boundary", () => {
   });
 });
 
+// Nothing participant-identifying is written to stdout, anywhere. Asserted
+// against the source rather than against a run, because the leak that matters
+// is the one added later by somebody debugging a session at 8am.
+describe("nothing is logged", () => {
+  test("the shell prints room lifecycle only", async () => {
+    const { readdirSync, readFileSync } = await import("node:fs");
+    const { join } = await import("node:path");
+
+    const calls = [];
+    for (const dir of ["src/server", "src/client", "src/core"]) {
+      for (const file of readdirSync(dir).filter((f) => f.endsWith(".js"))) {
+        readFileSync(join(dir, file), "utf8").split("\n").forEach((line, i) => {
+          if (line.trim().startsWith("//")) return;
+          if (/\bconsole\.\w+\s*\(/.test(line)) calls.push(`${dir}/${file}:${i + 1} ${line.trim()}`);
+        });
+      }
+    }
+
+    // One line, at boot, naming the room's URLs and nobody in it.
+    expect(calls.length, `unexpected logging:\n${calls.join("\n")}`).toBe(1);
+    expect(calls[0]).toContain("src/server/index.js");
+    for (const tell of ["name", "token", "participant", "reader", "condition", "seen"]) {
+      expect(calls[0].toLowerCase(), `the boot line mentions ${tell}`).not.toContain(tell);
+    }
+  });
+});
+
 describe("the client never learns the answer", () => {
   test("no view marks which card fixes the current condition", () => {
     const state = reduce(

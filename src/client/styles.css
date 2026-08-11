@@ -408,6 +408,16 @@ button.roster-name { font-family: var(--font); background: var(--paper); color: 
   .cat-desc { font-size: 20px; }
 }
 
+/* A second facilitator screen: the room as it is, with the controls dead and
+   one live thing on it. */
+.host-watching {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 2;
+  display: flex; align-items: center; justify-content: space-between; gap: 3vw;
+  background: var(--ink); color: var(--paper); padding: 2vh 4vw;
+}
+.host-watching p { margin: 0; font-size: clamp(18px, 2vw, 32px); font-weight: 800; }
+.inert { opacity: 0.4; pointer-events: none; }
+
 /* --- the reveal ---------------------------------------------------------- */
 
 /* Six items at projector scale, and not one name on the screen. Scrolls rather
