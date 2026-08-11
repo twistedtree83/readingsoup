@@ -131,21 +131,38 @@ function silent(view) {
 }
 
 function watching(view) {
-  // Inverted to ink so it reads as a DIFFERENT MODE, not a disabled screen.
-  // Waiting is the task here, not an absence of one.
-  return el(`
-    <div class="inverted">
-      <p class="eyebrow eyebrow-light">${esc(view.readerName ?? "Someone")} is reading</p>
-      <h1 class="display">${view.finished ? "That's the round." : "Watch and listen."}</h1>
+  // With nothing in your hands, waiting IS the task, and the screen inverts to
+  // ink so it reads as a different mode rather than a disabled one.
+  //
+  // With a hand it is not waiting at all, and the screen goes back to paper:
+  // the cards carry their own grounds, and two of the six are ink, so on an
+  // inverted screen they vanish into the background they were designed to sit
+  // against.
+  const dealt = Boolean(view.hand?.length);
+  const node = el(`
+    <div class="${dealt ? "" : "inverted"}">
+      <p class="eyebrow${dealt ? "" : " eyebrow-light"}">${esc(view.readerName ?? "Someone")} is reading</p>
+      <h1 class="display">${
+        view.finished ? "That's the round." : view.accommodated ? "That helped." : "Watch and listen."
+      }</h1>
       <p class="lede">${
         view.finished
           ? "Look up at the screen — you're about to find out what it actually said."
+          : view.accommodated
+          ? "The barrier is off their screen. Listen to the difference."
           : "You can't see their screen. Listen to how they're going, not what they're saying."
       }</p>
-      <div class="spacer"></div>
-      <div class="waiting-cards" aria-hidden="true"><i></i><i></i><i></i></div>
+      ${
+        dealt && !view.finished && !view.accommodated
+          ? `<p class="note">Which of these would make this easier?</p>`
+          : ""
+      }
+      <div class="hand">${hand(view)}</div>
+      ${dealt ? "" : `<div class="spacer"></div><div class="waiting-cards" aria-hidden="true"><i></i><i></i><i></i></div>`}
     </div>
   `);
+  wireRound(node);
+  return node;
 }
 
 function typing(view) {
@@ -205,9 +222,18 @@ function reading(view) {
   return node;
 }
 
+// A spent card stays on screen, greyed and dead. Removing it would hide what
+// the room has already tried, and trying the wrong thing is the part worth
+// remembering.
 const hand = (view) =>
   (view.hand ?? [])
-    .map((c) => `<button class="card" data-card="${c}">${esc(CARD_LABELS[c])}</button>`)
+    .map((c) => {
+      const spent = (view.spent ?? []).includes(c);
+      const dead = spent || view.accommodated === true;
+      return `<button class="card${spent ? " spent" : ""}" data-card="${c}"${
+        dead ? " disabled" : ""
+      }>${esc(CARD_LABELS[c])}</button>`;
+    })
     .join("");
 
 function wireRound(node) {

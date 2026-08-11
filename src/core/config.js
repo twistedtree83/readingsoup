@@ -51,6 +51,13 @@ export const CONFIG = {
     playsPerRound: 3,
     silentRoundMs: 90_000,
   },
+  cards: {
+    // Where a room stops being small. Below this everyone holds the whole deck,
+    // because scarcity in a small group does not create tension, it just leaves
+    // the round with no way out.
+    groupFrom: 6,
+    handAtGroup: 3,
+  },
   spotlight: {
     maxRounds: 8,
     // What one spotlight actually costs the room: announce, read, the clean

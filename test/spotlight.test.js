@@ -2,8 +2,9 @@ import { test, expect, describe } from "bun:test";
 import { initialState, reduce } from "../src/core/session.js";
 import { viewFor, rosterTokens } from "../src/core/view.js";
 import { CONFIG } from "../src/core/config.js";
-import { IMPLEMENTED } from "../src/core/conditions.js";
+import { CARD_LABELS, IMPLEMENTED } from "../src/core/conditions.js";
 import { PASSAGES, DICTATION } from "../src/core/passages.js";
+import { fullDeck } from "../src/core/deck.js";
 
 // The split this slice encodes: the human owns who reads, the app owns which
 // barrier they get. Everything below is asserted through the reducer and the
@@ -266,6 +267,11 @@ describe("a spotlight round still tells the room nothing", () => {
   const CONTENT = [...PASSAGES, ...DICTATION].flatMap((p) =>
     p.text.split(/\s+/).filter((w) => w.replace(/[^A-Za-z]/g, "").length > 4)
   );
+  // Card names legitimately reach every phone, and one of them contains a word
+  // the passages also use. Removing them first keeps the scan honest in both
+  // directions: no false alarm, no weakened rule.
+  const withoutCards = (s) =>
+    [...fullDeck(), ...Object.values(CARD_LABELS)].reduce((acc, w) => acc.split(w).join(""), s);
 
   test("the reader gets a task and everybody else gets a person to watch", () => {
     for (const size of [2, 5, 8, 20]) {
@@ -288,7 +294,7 @@ describe("a spotlight round still tells the room nothing", () => {
           expect(v.tokens, `${size}p: ${token} received tokens`).toBeUndefined();
           expect(v.prompt, `${size}p: ${token} received a prompt`).toBeUndefined();
           expect(v.watching).toBe(true);
-          const serialised = JSON.stringify(v);
+          const serialised = withoutCards(JSON.stringify(v));
           for (const word of CONTENT) {
             if (serialised.includes(word)) throw new Error(`${size}p: ${token} leaked "${word}"`);
           }

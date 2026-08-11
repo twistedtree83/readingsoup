@@ -98,7 +98,29 @@ function announce(view) {
         <span class="under" aria-hidden="true">${esc(view.readerName ?? "")}</span>
         <span class="over">${esc(view.readerName ?? "")}</span>
       </div>
-      <p class="turn-foot">Everyone else: cards down, ears open.</p>
+      <p class="turn-foot">${
+        view.played ? playedLine(view.played) : "Everyone else: cards down, ears open."
+      }</p>
+    </section>
+  `);
+}
+
+// Wrong plays are counted, never named. Being generous and wrong about how to
+// help a struggling colleague is not something to put in projector-scale type
+// at a staff meeting.
+const playedLine = (n) => (n === 1 ? "One card played." : `${n} cards played.`);
+
+// The moment the barrier comes off, and the only place a name is attached to a
+// card. Same slide furniture as the announce, so it lands as the same beat.
+function helped(view) {
+  return el(`
+    <section class="slide slide-helped">
+      <p class="turn-lead">That helped</p>
+      <div class="turn-name">
+        <span class="under" aria-hidden="true">${esc(view.helped.name ?? "")}</span>
+        <span class="over">${esc(view.helped.name ?? "")}</span>
+      </div>
+      <p class="turn-foot">played <strong>${esc(view.helped.cardLabel ?? "")}</strong>.</p>
     </section>
   `);
 }
@@ -165,7 +187,9 @@ function render(view) {
   }
 
   if (view.phase === "round") {
-    stage.replaceChildren(view.finished ? cleanPassage(view) : announce(view));
+    stage.replaceChildren(
+      view.finished ? cleanPassage(view) : view.helped ? helped(view) : announce(view)
+    );
     return;
   }
 

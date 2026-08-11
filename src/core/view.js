@@ -95,7 +95,9 @@ export function viewFor(state, participantId, config) {
       };
     }
 
-    // Everyone else: no tokens, no render mode, no passage. Just who to watch.
+    // Everyone else: no tokens, no render mode, no passage. Who to watch, and
+    // the hand they were dealt — the half of this activity that needs no
+    // reading and carries no exposure, which is why observers hold one too.
     return {
       phase: "round",
       mode: state.mode,
@@ -103,6 +105,11 @@ export function viewFor(state, participantId, config) {
       watching: true,
       readerName,
       finished: state.round.finished,
+      hand: me?.hand?.length ? me.hand : undefined,
+      spent: me?.hand?.length ? me.spent ?? [] : undefined,
+      // Nothing here says which card is the right one. A player finds that out
+      // by playing it, in front of everybody, which is the entire point.
+      accommodated: state.round.accommodated === true,
     };
   }
 
@@ -261,6 +268,18 @@ function hostView(state, config) {
       clean: state.round.finished ? byId(state.round.passageId)?.text : undefined,
       canAdvance: state.round.finished,
       spotlight: { ...plan, index: plan.done + 1 },
+      // Attribution, deliberately asymmetric. A correct play is named: it is a
+      // generous act, done in public, and the room should see who made the
+      // reading possible. A wrong one is counted and left anonymous — being
+      // publicly wrong about how to help a struggling colleague is not
+      // something to put in projector-scale type at a staff meeting.
+      played: state.round.plays ?? 0,
+      helped: state.round.helped
+        ? {
+            name: state.round.helped.name,
+            cardLabel: CARD_LABELS[state.round.helped.card],
+          }
+        : undefined,
     };
   }
 

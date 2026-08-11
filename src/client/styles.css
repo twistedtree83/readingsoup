@@ -148,6 +148,15 @@ html, body {
 .card[data-card="change-the-colours"] { background: linear-gradient(105deg, var(--red) 0 52%, var(--ink) 52% 100%); color: var(--paper); }
 .card[data-card="give-them-a-scribe"] { background: var(--blue-tint); color: var(--ink); border-color: var(--red); }
 
+/* Spent, not gone. What the room has already tried stays visible — trying the
+   wrong thing is the part worth remembering. */
+.card.spent, .card:disabled { cursor: default; }
+.card.spent {
+  background: var(--paper); color: var(--ink); border-color: var(--ink);
+  opacity: 0.32; text-decoration: line-through;
+}
+.card:disabled:not(.spent) { opacity: 0.6; }
+
 .helped {
   background: var(--red-tint);
   border: 4px solid var(--ink);
@@ -315,6 +324,15 @@ body.host #stage { min-height: 100dvh; }
 .turn-name .under { position: absolute; top: 0.02em; left: 0.03em; color: var(--ink); }
 .turn-name .over { position: relative; color: var(--paper); }
 .turn-foot { font-size: clamp(24px, 3.4vw, 56px); font-weight: 800; margin: 0; }
+
+/* The relief slide, on ink rather than red: the same beat as the announce, but
+   the room is being told something has been lifted, not that a turn is coming. */
+.slide-helped {
+  flex-direction: column; align-items: flex-start; justify-content: center;
+  background: var(--ink); color: var(--paper);
+}
+.slide-helped .turn-name .under { color: var(--red); }
+.slide-helped .turn-name .over { color: var(--paper); }
 
 .slide-clean { align-items: center; }
 .clean-text {

@@ -299,6 +299,10 @@ async function runSize(url, size) {
 
   const hasTask = (v) => Array.isArray(v?.tokens) || typeof v?.prompt === "string";
   const observerNamesAll = people.filter((p) => p.role === "observer").map((p) => p.name);
+  // Hand size scales off active participants, exactly as the group-size modes
+  // in the PRD do. Observers hold a hand but do not push a small room into
+  // scarcity — they are not the reason a group is a group.
+  const activeParticipants = people.filter((p) => p.role === "participant").length;
   const readerIdx = people.findIndex((p) => p.role === "participant");
 
   if (readerIdx >= 0) {
@@ -345,6 +349,56 @@ async function runSize(url, size) {
         check(`${label}: a non-reader got tokens`, !("tokens" in v), p.name);
         check(`${label}: a non-reader got a dictation prompt`, !("prompt" in v), p.name);
         check(`${label}: a non-reader was not told to watch`, v.watching === true, p.name);
+      }
+
+      // ---- the cards, on the wire, once per size --------------------------
+      // The unit suite proves the correct card is always dealt. This proves the
+      // consequence: a room that plays everything it holds always gets the
+      // barrier off, and nobody but the reader ever sees the passage doing it.
+      const table = people.filter((p) => p !== reader);
+      if (i === 1 && table.length) {
+        const expectedHand = activeParticipants >= 6 ? 3 : 6;
+        for (const p of table) {
+          check(`${label}: a hand was the wrong size`, p.last()?.hand?.length === expectedHand,
+            `${p.name} holds ${p.last()?.hand?.length}, expected ${expectedHand}`);
+        }
+        check(`${label}: the reader was dealt cards`, reader.last()?.hand === undefined, name);
+
+        // One play first, on its own, so attribution can be read cleanly.
+        const first = table[0];
+        first.send({ type: "PLAY_CARD", card: first.last().hand[0] });
+        await until(() => (first.last()?.spent ?? []).length > 0);
+        check(`${label}: a played card was not spent`, (first.last()?.spent ?? []).length === 1, first.name);
+        if (host.last()?.helped) {
+          check(`${label}: a correct play went unattributed`, host.last().helped.name === first.name,
+            `${host.last().helped.name}`);
+        } else {
+          check(`${label}: a wrong play was attributed`,
+            !JSON.stringify(host.last() ?? {}).includes(first.name), first.name);
+          check(`${label}: a wrong play was not counted`, host.last()?.played >= 1, `${host.last()?.played}`);
+        }
+
+        // Now everything else. Somebody holds the card that lifts this barrier.
+        for (const p of table) {
+          for (const card of p.last()?.hand ?? []) {
+            if (host.last()?.helped) break;
+            p.send({ type: "PLAY_CARD", card });
+            await until(() => (p.last()?.spent ?? []).includes(card), 1500);
+          }
+        }
+        await until(() => Boolean(host.last()?.helped));
+        check(`${label}: the room played every card and the barrier stayed on`,
+          Boolean(host.last()?.helped), `played=${host.last()?.played}`);
+        check(`${label}: the helper was not named`, table.some((p) => p.name === host.last()?.helped?.name),
+          `${host.last()?.helped?.name}`);
+        check(`${label}: the reader was not accommodated`, reader.last()?.accommodated === true, name);
+        check(`${label}: the barrier was still on the reader's screen`,
+          reader.last()?.render?.contrast === 1 && reader.last()?.render?.wordGaps === true,
+          JSON.stringify(reader.last()?.render));
+
+        for (const p of table) {
+          check(`${label}: a card-holder received tokens`, !("tokens" in (p.last() ?? {})), p.name);
+        }
       }
 
       reader.send({ type: "DONE" });

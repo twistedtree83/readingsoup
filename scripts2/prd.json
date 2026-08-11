@@ -151,7 +151,7 @@
       "id": "S15",
       "issue": 38,
       "title": "Accommodation cards: dealing, play, resolution, attribution",
-      "passes": false,
+      "passes": true,
       "afk": true,
       "depends": [
         "S14"

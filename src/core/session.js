@@ -7,7 +7,7 @@
 import { CONDITIONS, FIXES, IMPLEMENTED, isTyping, SILENT_POOL } from "./conditions.js";
 import { rng } from "./random.js";
 import { pick, pickDictation } from "./passages.js";
-import { resolve } from "./deck.js";
+import { deal, fullDeck, resolve } from "./deck.js";
 import { mangle } from "./mangle.js";
 import { mangleTyped } from "./butterfingers.js";
 import { BANDS } from "./passages.js";
@@ -337,15 +337,40 @@ export function reduce(state, event, config) {
         reducedMotion: state.reducedMotion === true,
       });
 
+      // Everyone but the reader gets a hand — observers included. Card play
+      // requires no reading and carries no exposure, so it is the half of this
+      // activity that is safe for everybody, and a large session that dealt
+      // observers out would leave a dozen people watching a projector with
+      // nothing to do.
+      const table = Object.values(state.participants)
+        .filter((p) => p.role !== ROLES.HOST && p.token !== reader)
+        .sort((a, b) => a.order - b.order)
+        .map((p) => p.token);
+      const active = Object.values(state.participants).filter((p) => p.role === ROLES.PARTICIPANT);
+      const handSize =
+        active.length >= config.cards.groupFrom ? config.cards.handAtGroup : fullDeck().length;
+      const hands = deal(table, condition, { handSize, seed: (state.seed ?? 1) + used.length * 13 });
+
+      const participants = {
+        ...state.participants,
+        [reader]: {
+          ...who,
+          seen: [...(who.seen ?? []), condition],
+          spotlighted: true,
+          hand: [],
+          spent: [],
+        },
+      };
+      for (const token of table) {
+        participants[token] = { ...participants[token], hand: hands[token], spent: [] };
+      }
+
       return {
         state: {
           ...state,
           phase: "round",
           usedPassages: [...used, round.passageId],
-          participants: {
-            ...state.participants,
-            [reader]: { ...who, seen: [...(who.seen ?? []), condition], spotlighted: true },
-          },
+          participants,
           spotlight: {
             ...spotlight,
             counts: { ...spotlight.counts, [condition]: (spotlight.counts[condition] ?? 0) + 1 },
@@ -361,17 +386,25 @@ export function reduce(state, event, config) {
       // this the clean-passage slide is terminal and the loop is a single turn.
       if (state.phase !== "round") return { state, effects };
       const spotlight = spotlightOf(state);
-      const reader = state.participants[state.round.reader];
+      const participants = {};
+      for (const [token, p] of Object.entries(state.participants)) {
+        // Hands are per round: the next reader has a different barrier, and a
+        // hand carried over would be a hand already half spent against it.
+        // Having read, the reader is no longer waiting to — leaving them pinned
+        // to the top of the roster would crowd out the next willing person.
+        participants[token] = {
+          ...p,
+          hand: [],
+          spent: [],
+          volunteered: token === state.round.reader ? false : p.volunteered,
+        };
+      }
       return {
         state: {
           ...state,
           phase: "lobby",
           round: null,
-          // Having read, they are no longer waiting to — leaving them pinned to
-          // the top of the roster would crowd out the next willing person.
-          participants: reader
-            ? { ...state.participants, [reader.token]: { ...reader, volunteered: false } }
-            : state.participants,
+          participants,
           spotlight: { ...spotlight, done: spotlight.done + 1 },
         },
         effects,
@@ -380,35 +413,71 @@ export function reduce(state, event, config) {
 
     case "PLAY_CARD": {
       if (!state.round || state.round.accommodated) return { state, effects };
-      if (!resolve(event.card, state.round.condition)) {
-        // Wrong card does nothing. Unlimited attempts in solo, no penalty.
-        return { state, effects };
+
+      // In a room a card has to be one you were dealt and have not already
+      // spent, and the reader has no hand at all — they are the one being
+      // helped. Solo has no table: one person holds the whole deck and may try
+      // as often as they like, with no penalty and nothing spent.
+      const player = state.round.reader ? state.participants[event.token] : null;
+      if (state.round.reader) {
+        if (!player || event.token === state.round.reader) return { state, effects };
+        if (!(player.hand ?? []).includes(event.card)) return { state, effects };
+        if ((player.spent ?? []).includes(event.card)) return { state, effects };
       }
+
+      const correct = resolve(event.card, state.round.condition);
+      // Spent either way. The wrong card changing nothing is the good part: the
+      // reader says so out loud, and the room finds out that guessing at what
+      // somebody needs costs something.
+      const played = {
+        ...state,
+        participants: player
+          ? {
+              ...state.participants,
+              [event.token]: { ...player, spent: [...(player.spent ?? []), event.card] },
+            }
+          : state.participants,
+        round: { ...state.round, plays: (state.round.plays ?? 0) + 1 },
+      };
+      if (!correct) return { state: played, effects };
+
+      effects.push({
+        type: "ACCOMMODATED",
+        condition: state.round.condition,
+        card: event.card,
+        by: player?.name,
+      });
+
+      // Named, because the correct play is a generous act done in public. The
+      // wrong ones stay unattributed — see `view`.
+      const helped = player ? { name: player.name, card: event.card } : undefined;
+
       if (state.round.kind === "typing") {
-        effects.push({ type: "ACCOMMODATED", condition: state.round.condition, card: event.card });
         return {
           state: {
-            ...state,
-            round: { ...state.round, accommodated: true, output: state.round.intended },
+            ...played,
+            round: { ...played.round, accommodated: true, output: played.round.intended, helped },
           },
           effects,
         };
       }
-      const passage = state.round.passageId;
-      const next = {
-        ...state,
-        round: {
-          ...state.round,
-          accommodated: true,
-          rendered: mangle(lookupText(passage), state.round.condition, config, {
-            seed: state.round.seed,
-            reducedMotion: state.reducedMotion === true,
+
+      return {
+        state: {
+          ...played,
+          round: {
+            ...played.round,
             accommodated: true,
-          }),
+            helped,
+            rendered: mangle(lookupText(played.round.passageId), played.round.condition, config, {
+              seed: played.round.seed,
+              reducedMotion: state.reducedMotion === true,
+              accommodated: true,
+            }),
+          },
         },
+        effects,
       };
-      effects.push({ type: "ACCOMMODATED", condition: state.round.condition, card: event.card });
-      return { state: next, effects };
     }
 
     case "DONE": {

@@ -3,6 +3,8 @@ import { initialState, reduce } from "../src/core/session.js";
 import { viewFor } from "../src/core/view.js";
 import { PASSAGES, DICTATION } from "../src/core/passages.js";
 import { CONFIG } from "../src/core/config.js";
+import { fullDeck } from "../src/core/deck.js";
+import { CARD_LABELS } from "../src/core/conditions.js";
 
 const room = (n, observerEvery = 3) => {
   let s = reduce(initialState(), { type: "OPEN_ROOM", roomCode: "4417", token: "host", at: 0, seed: 7 }, CONFIG).state;
@@ -81,8 +83,15 @@ const CONTENT = [...PASSAGES, ...DICTATION].flatMap((p) =>
   p.text.split(/\s+/).filter((w) => w.replace(/[^A-Za-z]/g, "").length > 4)
 );
 
+// Cards are a closed vocabulary that legitimately reaches every phone, and one
+// of them is called "change the colours". A passage word sitting inside a card
+// name is not a leak, so the card names come out before the scan — an
+// occurrence anywhere else still trips it.
+const CARD_WORDS = [...fullDeck(), ...Object.values(CARD_LABELS)];
+const withoutCards = (s) => CARD_WORDS.reduce((acc, w) => acc.split(w).join(""), s);
+
 function assertNoPassageContent(view, where) {
-  const s = JSON.stringify(view);
+  const s = withoutCards(JSON.stringify(view));
   expect(`${where}: has tokens`).toBe(`${where}: has tokens`);
   expect(view.tokens, `${where} received tokens`).toBeUndefined();
   expect(view.clean, `${where} received the clean passage`).toBeUndefined();
