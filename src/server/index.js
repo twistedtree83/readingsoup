@@ -152,7 +152,11 @@ io.on("connection", (socket) => {
     const t = adoptable ? presented : presented && !isHostToken ? presented : randomUUID();
     attach(t);
     if (adoptable) dispatch({ type: "RECONNECT", token: t });
-    else if (name) dispatch({ type: "JOIN", token: t, name, role });
+    else if (name) {
+      // A late arrival gets a private catch-up round, which needs the clock.
+      dispatch({ type: "JOIN", token: t, name, role });
+      syncTicker();
+    }
     // `known` lets the client tell a genuine resume from a stale token
     // pointing at a room that no longer exists.
     socket.emit("identity", { token: t, roomCode, known: Boolean(adoptable) });
@@ -228,7 +232,10 @@ io.on("connection", (socket) => {
 let ticker = null;
 const counting = () =>
   (state.phase === "silent" && !state.silent?.finished) ||
-  (state.phase === "round" && state.round?.locked === true);
+  (state.phase === "round" && state.round?.locked === true) ||
+  // A latecomer's private catch-up runs on its own clock, alongside whatever
+  // the room is doing.
+  Object.values(state.participants).some((p) => p.catchUp && !p.catchUp.finished);
 
 function syncTicker() {
   if (counting() && !ticker) {

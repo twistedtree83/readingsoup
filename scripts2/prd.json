@@ -213,7 +213,7 @@
       "id": "S21",
       "issue": 44,
       "title": "Late joiners and mid-session opt-out",
-      "passes": false,
+      "passes": true,
       "afk": true,
       "depends": [
         "S16"

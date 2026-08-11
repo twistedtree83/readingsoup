@@ -563,6 +563,45 @@ async function runSize(url, size) {
 
     assertNoPassageLeak(people, `${label}/round`);
 
+    // ---- somebody walks in late, and somebody quietly steps out ------------
+    if (size >= 2) {
+      const before = { host: JSON.stringify(host.last()), phase: host.last()?.phase };
+      const late = participant(url, { name: "Wren", role: "participant" });
+      await until(() => late.last()?.phase === "silent", 3000);
+
+      if (expectedMode === "group") {
+        check(`${label}: a latecomer got no catch-up`, late.last()?.catchUp === true,
+          `${late.last()?.phase}`);
+        check(`${label}: the catch-up carried no passage`, Array.isArray(late.last()?.tokens));
+        check(`${label}: the room stopped for the latecomer`, host.last()?.phase === before.phase,
+          `${before.phase} -> ${host.last()?.phase}`);
+        for (const p of people) {
+          check(`${label}: a phone was told somebody is catching up`,
+            !/catchUp|catching/i.test(JSON.stringify(p.last() ?? {})), p.name);
+        }
+      }
+      late.socket.disconnect();
+      await wait(200);
+
+      // Opting out: silent, permanent, and invisible to everybody else.
+      const quitter = people.find((p) => p.role === "participant");
+      const othersBefore = people.filter((p) => p !== quitter).map((p) => JSON.stringify(p.last()));
+      const hostBefore = JSON.stringify(host.last());
+      const effectsBefore = people.flatMap((p) => p.effects).length;
+
+      quitter.send({ type: "OPT_OUT" });
+      await until(() => quitter.last()?.role === "observer");
+      check(`${label}: opting out did not take`, quitter.last()?.role === "observer", quitter.name);
+      check(`${label}: opting out moved the projector`, JSON.stringify(host.last()) === hostBefore);
+      people.filter((p) => p !== quitter).forEach((p, i) => {
+        check(`${label}: opting out moved somebody else's phone`,
+          JSON.stringify(p.last()) === othersBefore[i], p.name);
+      });
+      check(`${label}: opting out emitted something`,
+        people.flatMap((p) => p.effects).length === effectsBefore);
+      check(`${label}: the control vanished after use`, quitter.last()?.canOptOut === true, quitter.name);
+    }
+
     // ---- the reveal ------------------------------------------------------
     // Complete however the session went: everybody active met a barrier, so
     // nobody comes up blank whether the facilitator ran two spotlights or ten.

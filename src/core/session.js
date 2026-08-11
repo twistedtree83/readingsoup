@@ -165,7 +165,13 @@ export function modeFor(state, config) {
 // twenty-person session ends before the room does, not to shorten a session of
 // five. A small room instead runs ceil(6 / n) each, capped at three, so the
 // people in it still meet every barrier between them.
+// Fixed when the facilitator starts, and never recomputed. If this were live,
+// somebody quietly becoming an observer would move the plan on the projector at
+// the exact moment they did it — a five-person room turning into a six-round
+// one in front of everybody is the disclosure the role exists to prevent. It is
+// also simply right: the session's shape was decided when it began.
 export function roundBudget(state, config) {
+  if (typeof state.plan?.budget === "number") return state.plan.budget;
   const n = activeParticipants(state).length;
   if (n >= config.cards.groupFrom) return config.spotlight.maxRounds;
   return n * roundsPerPerson(n, config);
@@ -174,6 +180,24 @@ export function roundBudget(state, config) {
 export function roundsPerPerson(n, config) {
   if (n < 1) return 0;
   return Math.min(config.small.maxRoundsPerPerson, Math.ceil(IMPLEMENTED.length / n));
+}
+
+// The barrier a latecomer meets: whichever of the silent pool the room has
+// handed out least, so a late arrival widens the room's coverage rather than
+// piling onto whatever was already common.
+function catchUpCondition(state, seen = []) {
+  const counts = {};
+  for (const p of Object.values(state.participants ?? {})) {
+    for (const c of p.seen ?? []) counts[c] = (counts[c] ?? 0) + 1;
+  }
+  const options = SILENT_POOL.filter((c) => !seen.includes(c));
+  const pool = options.length ? options : SILENT_POOL;
+  return pool.reduce((best, c) => ((counts[c] ?? 0) < (counts[best] ?? 0) ? c : best), pool[0]);
+}
+
+function withoutKey(map, key) {
+  const { [key]: _gone, ...rest } = map ?? {};
+  return rest;
 }
 
 function canSpotlight(state, config) {
@@ -252,23 +276,76 @@ export function reduce(state, event, config) {
     case "JOIN": {
       if (!event.token) return { state, effects };
       const existing = state.participants[event.token];
-      const role = event.role === ROLES.OBSERVER ? ROLES.OBSERVER : ROLES.PARTICIPANT;
+      // Opting out is permanent. A phone that reconnects, or one whose owner
+      // taps through the join screen again, does not undo it.
+      const role =
+        existing?.role === ROLES.OBSERVER || event.role === ROLES.OBSERVER
+          ? ROLES.OBSERVER
+          : ROLES.PARTICIPANT;
+      const joined = {
+        ...existing,
+        token: event.token,
+        name: String(event.name ?? "").trim() || existing?.name || "Someone",
+        role,
+        connected: true,
+        order: existing?.order ?? Object.keys(state.participants).length,
+      };
+
+      // Somebody always walks in six minutes late. That is a certainty in a
+      // staff meeting, not an edge case — and they have missed the round that
+      // carries the actual learning. Run it for them privately, right now: it
+      // is a per-phone experience anyway, so there is nothing to synchronise.
+      const late =
+        !existing && role === ROLES.PARTICIPANT && state.silentPassageId && !joined.catchUp;
+      if (late) {
+        const condition = catchUpCondition(state, joined.seen);
+        joined.seen = [...(joined.seen ?? []), condition];
+        joined.catchUp = {
+          passageId: state.silentPassageId,
+          condition,
+          seed: (state.seed ?? 1) + joined.order * 137,
+          startedAt: event.at,
+          durationMs: config.round.silentRoundMs,
+          remainingMs: config.round.silentRoundMs,
+          finished: false,
+        };
+      }
+
       return {
-        state: {
-          ...state,
-          participants: {
-            ...state.participants,
-            [event.token]: {
-              token: event.token,
-              name: String(event.name ?? "").trim() || "Someone",
-              role,
-              connected: true,
-              order: existing?.order ?? Object.keys(state.participants).length,
-            },
-          },
-        },
+        state: { ...state, participants: { ...state.participants, [event.token]: joined } },
         effects,
       };
+    }
+
+    case "OPT_OUT": {
+      // Someone will discover in round two that this is landing much harder
+      // than they expected. Silent, permanent, and it emits NOTHING: a visible
+      // withdrawal mid-round is precisely the public moment the observer role
+      // exists to prevent.
+      const who = state.participants[event.token];
+      if (!who || who.role !== ROLES.PARTICIPANT) return { state, effects };
+
+      // They keep their hand and go on playing. Card play carries no exposure,
+      // and taking it away would turn a quiet exit into a demotion.
+      const participants = {
+        ...state.participants,
+        [event.token]: { ...who, role: ROLES.OBSERVER },
+      };
+
+      // Mid silent round, their barrier becomes the cover everybody else's
+      // observer already has: the same passage, rendered clean.
+      const silent = state.silent
+        ? { ...state.silent, assigned: withoutKey(state.silent.assigned, event.token) }
+        : state.silent;
+
+      // If they are the reader, this is DONE and nothing else. From the room's
+      // point of view they simply finished.
+      const round =
+        state.phase === "round" && state.round?.reader === event.token
+          ? { ...state.round, finished: true }
+          : state.round;
+
+      return { state: { ...state, participants, silent, round }, effects };
     }
 
     case "RECONNECT": {
@@ -304,8 +381,16 @@ export function reduce(state, event, config) {
       const active = activeParticipants(state);
       if (!active.length) return { state, effects };
 
+      // Frozen here, so nothing about the session's shape can move later when
+      // somebody joins late or quietly steps out.
+      const plan = {
+        mode: modeFor(state, config),
+        budget: roundBudget({ ...state, plan: null }, config),
+        perPerson: roundsPerPerson(active.length, config),
+      };
+
       if (active.length >= config.cards.groupFrom) {
-        return reduce({ ...state, mode: "group" }, { ...event, type: "START_SILENT" }, config);
+        return reduce({ ...state, mode: "group", plan }, { ...event, type: "START_SILENT" }, config);
       }
 
       if (active.length === 1) {
@@ -318,7 +403,7 @@ export function reduce(state, event, config) {
         // or the fallback becomes the disclosure the observer role exists to
         // prevent.
         const tour = { order: [...IMPLEMENTED], index: 0, usedPassages: [], seen: [] };
-        const next = { ...state, mode: "solo", phase: "reading", reader: active[0].token, tour };
+        const next = { ...state, mode: "solo", plan, phase: "reading", reader: active[0].token, tour };
         next.round = beginRound(next, tour.order[0], config);
         next.tour = { ...tour, usedPassages: [next.round.passageId], seen: [tour.order[0]] };
         return { state: next, effects };
@@ -328,7 +413,7 @@ export function reduce(state, event, config) {
       // rather than a facilitator's choice.
       const planned = roundBudget(state, config);
       return {
-        state: { ...state, mode: "small", spotlight: { ...spotlightOf(state), planned } },
+        state: { ...state, mode: "small", plan, spotlight: { ...spotlightOf(state), planned } },
         effects,
       };
     }
@@ -363,6 +448,10 @@ export function reduce(state, event, config) {
           ...state,
           phase: "silent",
           participants,
+          // Kept so a latecomer's private catch-up is the SAME forty words the
+          // room had. "We all read the same passage" is the facilitator's best
+          // line, and it should still be true for the person who walked in late.
+          silentPassageId: passage.id,
           usedPassages: [...(state.usedPassages ?? []), passage.id],
           silent: {
             passageId: passage.id,
@@ -380,6 +469,23 @@ export function reduce(state, event, config) {
 
     case "TICK": {
       // Time is an input. The shell ticks; the core only ever subtracts.
+      //
+      // Private catch-ups run on their own clocks, alongside whatever the room
+      // is doing, so they are ticked first and independently of the phase.
+      if (Object.values(state.participants ?? {}).some((p) => p.catchUp && !p.catchUp.finished)) {
+        const participants = {};
+        for (const [token, p] of Object.entries(state.participants)) {
+          if (!p.catchUp || p.catchUp.finished) { participants[token] = p; continue; }
+          const elapsed = Math.max(0, event.at - p.catchUp.startedAt);
+          const remainingMs = Math.max(0, p.catchUp.durationMs - elapsed);
+          participants[token] = {
+            ...p,
+            catchUp: { ...p.catchUp, remainingMs, finished: remainingMs === 0 },
+          };
+        }
+        state = { ...state, participants };
+      }
+
       if (state.phase === "round" && state.round?.locked) {
         // The tick drives the DISPLAY. Whether a card may actually be played is
         // decided against the play's own timestamp, so a dropped tick can slow

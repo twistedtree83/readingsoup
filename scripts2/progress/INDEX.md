@@ -24,6 +24,6 @@ Graph: `scripts2/prd.json` · Branch: `sprint/soup-mvp` · Parent: #1
 | S18 | #41 | True handovers: scribe and read it to them | yes | pending |
 | S19 | #42 | Group-size modes and the silent solo fallback | yes | **shipped** — [S19.md](S19.md) |
 | S20 | #43 | Reveal and debrief | yes | **shipped** — [S20.md](S20.md) |
-| S21 | #44 | Late joiners and mid-session opt-out | yes | pending |
+| S21 | #44 | Late joiners and mid-session opt-out | yes | **shipped** — [S21.md](S21.md) |
 | S22 | #45 | Resilience: wake lock, crash snapshot, host takeover | yes | pending |
 | S23 | #46 | Tuning pass and polish | **no** | pending — human gate |

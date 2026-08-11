@@ -24,6 +24,30 @@ export function viewFor(state, participantId, config) {
   const me = state.participants?.[participantId];
 
   if (me?.role === ROLES.HOST) return hostView(state, config);
+
+  // A private catch-up outranks whatever the room is doing. Somebody who walked
+  // in late gets their ninety seconds at their own desk while everyone else is
+  // mid-spotlight — it is a per-phone experience, so there is nothing to
+  // synchronise and nothing for the room to wait for.
+  if (me?.catchUp && !me.catchUp.finished) {
+    const passage = byId(me.catchUp.passageId);
+    const rendered = mangle(passage.text, me.catchUp.condition, config ?? CONFIG, {
+      seed: me.catchUp.seed,
+      reducedMotion: state.reducedMotion === true,
+    });
+    return {
+      phase: "silent",
+      mode: state.mode,
+      role: me.role,
+      catchUp: true,
+      passageId: passage.id,
+      tokens: rendered.tokens,
+      render: rendered.render,
+      remainingMs: me.catchUp.remainingMs,
+      canOptOut: true,
+    };
+  }
+
   if (state.phase === "silent") {
     const passage = byId(state.silent.passageId);
     const condition = state.silent.assigned[participantId];
@@ -41,6 +65,7 @@ export function viewFor(state, participantId, config) {
         role: me?.role ?? "spectator",
         passageId: passage.id,
         observerCover: true,
+        canOptOut: canOptOut(me),
         tokens: clean.tokens,
         render: clean.render,
         remainingMs: state.silent.remainingMs,
@@ -56,6 +81,7 @@ export function viewFor(state, participantId, config) {
       mode: state.mode,
       role: me?.role ?? "participant",
       passageId: passage.id,
+      canOptOut: canOptOut(me),
       tokens: rendered.tokens,
       render: rendered.render,
       remainingMs: state.silent.remainingMs,
@@ -73,6 +99,7 @@ export function viewFor(state, participantId, config) {
         reader: true,
         readerName,
         finished: state.round.finished,
+        canOptOut: canOptOut(me),
         // Names, never tokens. A token on somebody else's phone would let them
         // act as that person.
         ...(state.round.reader && !state.round.finished
@@ -113,6 +140,7 @@ export function viewFor(state, participantId, config) {
       watching: true,
       readerName,
       finished: state.round.finished,
+      canOptOut: canOptOut(me),
       hand: me?.hand?.length ? me.hand : undefined,
       spent: me?.hand?.length ? me.spent ?? [] : undefined,
       // Nothing here says which card is the right one. A player finds that out
@@ -138,6 +166,7 @@ export function viewFor(state, participantId, config) {
       // only a participant's willingness ever reaches the projector.
       canVolunteer: Boolean(me) && !(state.spotlight?.ended === true),
       volunteered: me?.volunteered === true,
+      canOptOut: canOptOut(me),
     };
   }
 
@@ -205,6 +234,15 @@ export function viewFor(state, participantId, config) {
   };
 }
 
+
+// On every phone, in every phase, for participants and observers alike — and it
+// never changes shape once used. A control that appears, disappears, or turns
+// into a confirmation is a control that tells the next seat along what you just
+// did with it. What changes after tapping it is the rest of your own screen.
+function canOptOut(me) {
+  return Boolean(me) && me.role !== ROLES.HOST;
+}
+
 // The projector view. Deliberately thin: a room code, a headcount, and names.
 //
 // THE ROSTER CARRIES NAMES ONLY. No roles, no counts split by role, nothing
@@ -270,8 +308,12 @@ function spotlightPlan(state, config) {
   const cfg = config ?? CONFIG;
   const { maxRounds, roundEstimateMs } = cfg.spotlight;
   const s = state.spotlight ?? {};
+  // Read from the plan frozen at the start, not from the live headcount. A
+  // chooser that vanished the instant somebody opted out would announce it to
+  // the whole room from the projector.
   const active = activeParticipants(state).length;
-  const group = active >= cfg.cards.groupFrom;
+  const mode = state.plan?.mode ?? (active >= cfg.cards.groupFrom ? "group" : active <= 1 ? "solo" : "small");
+  const group = mode === "group";
   return {
     planned: s.planned ?? null,
     done: s.done ?? 0,
@@ -283,7 +325,8 @@ function spotlightPlan(state, config) {
     // number of rounds falls out of the headcount, so there is nothing to pick.
     // Nothing to state in a group (the facilitator picks) and nothing to state
     // in the solo fallback (there are no rounds, there is a tour).
-    perPerson: group || active <= 1 ? undefined : roundsPerPerson(active, cfg),
+    perPerson:
+      mode === "small" ? state.plan?.perPerson ?? roundsPerPerson(active, cfg) : undefined,
     options: group
       ? Array.from({ length: maxRounds }, (_, i) => ({
           count: i + 1,

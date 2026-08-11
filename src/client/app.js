@@ -92,11 +92,13 @@ function lobby(view) {
       }
       <div class="spacer"></div>
       <div class="waiting-cards" aria-hidden="true"><i></i><i></i><i></i></div>
+      ${optOut(view)}
     </div>
   `);
   node.querySelector('[data-act="volunteer"]')?.addEventListener("click", () =>
     send({ type: "VOLUNTEER" })
   );
+  wireRound(node);
   return node;
 }
 
@@ -113,7 +115,7 @@ function silent(view) {
   };
   const tokens = view.tokens.map(span).join(view.render.wordGaps ? " " : "");
 
-  return el(`
+  const node = el(`
     <div>
       <p class="eyebrow">${
         view.observerCover ? "Read this, then look up" : "Read this to yourself"
@@ -122,12 +124,17 @@ function silent(view) {
            style="letter-spacing:${view.render.letterSpacing};
                   color:color-mix(in srgb, var(--ink) ${view.render.contrast * 100}%, var(--paper))">${tokens}</div>
       <p class="note">${
-        view.observerCover
+        view.catchUp
+          ? "Your own ninety seconds. The room is on something else."
+          : view.observerCover
           ? "Then look up and watch the room. Everyone has the same forty words."
           : "Nobody is watching. Nothing is being timed."
       }</p>
+      ${optOut(view)}
     </div>
   `);
+  wireRound(node);
+  return node;
 }
 
 function watching(view) {
@@ -157,6 +164,7 @@ function watching(view) {
       ${dealt && !view.finished && !view.accommodated ? handLead(view) : ""}
       <div class="hand">${hand(view)}</div>
       ${dealt ? "" : `<div class="spacer"></div><div class="waiting-cards" aria-hidden="true"><i></i><i></i><i></i></div>`}
+      ${optOut(view)}
     </div>
   `);
   wireRound(node);
@@ -177,6 +185,7 @@ function typing(view) {
       <div class="spacer"></div>
       <button class="btn btn-secondary" data-act="done">I've finished</button>
       ${tagIn(view)}
+      ${optOut(view)}
     </div>
   `);
   const box = node.querySelector(".typebox");
@@ -216,6 +225,7 @@ function reading(view) {
       <div class="spacer"></div>
       <button class="btn btn-secondary" data-act="done">I've finished reading</button>
       ${tagIn(view)}
+      ${optOut(view)}
     </div>
   `);
   wireRound(node);
@@ -269,6 +279,21 @@ function tagIn(view) {
     </details>`;
 }
 
+
+// Persistent, quiet, and on every phone in every phase — including one that has
+// already used it, where tapping does nothing. A control that appears or
+// disappears is a control that tells the next seat along what you just did.
+//
+// The wording is the whole thing: this is a way of watching, not a way of
+// failing. Nothing anywhere calls it giving up, and nothing announces it.
+function optOut(view) {
+  if (!view.canOptOut) return "";
+  if (view.role === "observer") {
+    return `<p class="opt-out-done">You're watching from here. Cards still work.</p>`;
+  }
+  return `<button class="opt-out" data-act="opt-out">Watch from here instead</button>`;
+}
+
 function wireRound(node) {
   node.querySelectorAll(".card").forEach((btn) =>
     btn.addEventListener("click", () => send({ type: "PLAY_CARD", card: btn.dataset.card }))
@@ -276,6 +301,9 @@ function wireRound(node) {
   node.querySelector('[data-act="done"]')?.addEventListener("click", () => send({ type: "DONE" }));
   node.querySelectorAll(".tag-name").forEach((btn) =>
     btn.addEventListener("click", () => send({ type: "TAG_IN", index: Number(btn.dataset.i) }))
+  );
+  node.querySelector('[data-act="opt-out"]')?.addEventListener("click", () =>
+    send({ type: "OPT_OUT" })
   );
 }
 
