@@ -15,7 +15,7 @@ Graph: `scripts2/prd.json` · Branch: `sprint/soup-mvp` · Parent: #1
 | S9  | #32 | Solo tour complete: six conditions and the personal catalogue | yes | **shipped** — [S9.md](S9.md) |
 | S10 | #33 | Rooms and join: three roles, token identity, roster, QR | yes | **shipped** — [S10.md](S10.md) |
 | S11 | #34 | Sim harness: headless N-participant sessions | yes | **shipped** — [S11.md](S11.md) |
-| S12 | #35 | Turn loop and private passage delivery | yes | pending |
+| S12 | #35 | Turn loop and private passage delivery | yes | **shipped** — [S12.md](S12.md) |
 | S13 | #36 | The silent round | yes | pending |
 | S14 | #37 | Spotlight rounds: volunteers, random draw, coverage selection | yes | pending |
 | S15 | #38 | Accommodation cards: dealing, play, resolution, attribution | yes | pending |

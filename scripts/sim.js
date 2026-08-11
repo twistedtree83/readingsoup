@@ -29,21 +29,47 @@ const NAMES = "Priya Marcus Aisha Tom Bea Dev Noor Sam Rin Ola Kit Jo Ada Ravi M
 
 // ---------------------------------------------------------------- the server
 
-async function bootServer() {
-  const port = 9000 + Math.floor(Math.random() * 900);
-  const proc = spawn("bun", ["run", "src/server/index.js"], {
-    env: { ...process.env, PORT: String(port), PUBLIC_URL: `http://localhost:${port}` },
-    stdio: "ignore",
-  });
-  const url = `http://localhost:${port}`;
-  for (let i = 0; i < 50; i++) {
-    try {
-      if ((await fetch(url, { signal: AbortSignal.timeout(500) })).ok) return { url, proc };
-    } catch {}
-    await wait(120);
+// Booting is fussier than it looks. A random port may already be held by
+// something entirely unrelated, and "it responded" is not the same as "it is
+// ours" — asserting a whole session against a stranger's service produces
+// baffling failures. So: refuse an occupied port, then confirm the thing that
+// answered is actually this server.
+async function isOurs(url) {
+  try {
+    const res = await fetch(`${url}/qr.svg`, { signal: AbortSignal.timeout(700) });
+    return res.ok && (await res.text()).startsWith("<svg");
+  } catch {
+    return false;
   }
-  proc.kill();
-  throw new Error(`server did not come up on ${port}`);
+}
+
+async function portFree(port) {
+  try {
+    await fetch(`http://localhost:${port}/`, { signal: AbortSignal.timeout(300) });
+    return false; // something answered
+  } catch {
+    return true;
+  }
+}
+
+async function bootServer() {
+  for (let attempt = 0; attempt < 12; attempt++) {
+    const port = 9000 + Math.floor(Math.random() * 900);
+    if (!(await portFree(port))) continue;
+
+    const url = `http://localhost:${port}`;
+    const proc = spawn("bun", ["run", "src/server/index.js"], {
+      env: { ...process.env, PORT: String(port), PUBLIC_URL: url },
+      stdio: "ignore",
+    });
+
+    for (let i = 0; i < 50; i++) {
+      if (await isOurs(url)) return { url, proc };
+      await wait(120);
+    }
+    proc.kill();
+  }
+  throw new Error("could not obtain a free port for the sim server");
 }
 
 // --------------------------------------------------------------- a simulated
@@ -130,6 +156,19 @@ async function runSize(url, size) {
     }
   }
 
+  // A phone that flaps: several reconnects in quick succession. `hello` fires
+  // on every connect, so this is where a participant can duplicate themselves.
+  const flapper = people[0];
+  for (let i = 0; i < 3; i++) {
+    flapper.drop();
+    await wait(60);
+    flapper.returnToRoom();
+    await wait(120);
+  }
+  await wait(700);
+  check(`${label}: a flapping phone duplicated itself`, host.last()?.roster?.length === size,
+    `${host.last()?.roster?.length}/${size}`);
+
   // a phone locks, then comes back — the single most common real event
   const victim = people.at(-1);
   victim.drop();
@@ -146,6 +185,81 @@ async function runSize(url, size) {
   check(`${label}: headcount recovers`, host.last()?.headcount === size, `${host.last()?.headcount}`);
 
   assertNoPassageLeak(people, label);
+
+  // ---- drive a real round through the real transport ----------------------
+  // The unit suite proves the boundary in the core. This proves it on the wire.
+  const readerIdx = people.findIndex((p) => p.role === "participant");
+  if (readerIdx >= 0) {
+    const reader = people[readerIdx];
+    host.send({ type: "START_ROUND", readerIndex: readerIdx });
+    await wait(600);
+
+    check(`${label}: reader got tokens`, Array.isArray(reader.last()?.tokens), `${reader.name}`);
+    check(`${label}: host was told whose turn`, host.last()?.readerName === reader.name);
+    check(`${label}: clean passage withheld mid-round`, host.last()?.clean === undefined);
+
+    for (const p of people.filter((p) => p !== reader)) {
+      const v = p.last() ?? {};
+      check(`${label}: a non-reader got tokens`, !("tokens" in v), p.name);
+      check(`${label}: a non-reader was not told to watch`, v.watching === true, p.name);
+    }
+
+    // An observer must never be selectable as a reader.
+    const obsIdx = people.findIndex((p) => p.role === "observer");
+    if (obsIdx >= 0) {
+      host.send({ type: "START_ROUND", readerIndex: obsIdx });
+      await wait(400);
+      check(`${label}: an observer was put in the reader seat`,
+        host.last()?.readerName !== people[obsIdx].name, people[obsIdx].name);
+    }
+
+    reader.send({ type: "DONE" });
+    await wait(500);
+    check(`${label}: host gets the clean passage after done`, typeof host.last()?.clean === "string",
+      `${typeof host.last()?.clean}`);
+    for (const p of people) {
+      check(`${label}: a phone received the clean passage`, !("clean" in (p.last() ?? {})), p.name);
+    }
+
+    // The loop must loop: end the round and run a second one with a different
+    // reader. A single turn is not a turn loop.
+    host.send({ type: "END_ROUND" });
+    await wait(500);
+    check(`${label}: END_ROUND did not return to the roster`, host.last()?.phase === "lobby",
+      `phase=${host.last()?.phase}`);
+
+    const second = people.findIndex((p, i) => p.role === "participant" && i !== readerIdx);
+    if (second >= 0) {
+      host.send({ type: "START_ROUND", readerIndex: second });
+      await wait(600);
+      check(`${label}: second round did not start`, host.last()?.readerName === people[second].name,
+        `${host.last()?.readerName}`);
+      check(`${label}: previous reader was not moved to watching`,
+        people[readerIdx].last()?.watching === true);
+      people[second].send({ type: "DONE" });
+      await wait(400);
+    }
+
+    // A second /host arrival must not destroy the room — least of all
+    // mid-round, which is the worst possible moment.
+    const phaseBefore = host.last()?.phase;
+    const intruder = participant(url, { intent: "host" });
+    await wait(600);
+    // Mid-round the host view is the announce slide and legitimately carries no
+    // roster, so the room code and the still-running round are what to assert.
+    check(`${label}: a second host reset the room code`,
+      intruder.identity?.roomCode === host.identity?.roomCode,
+      `${intruder.identity?.roomCode} vs ${host.identity?.roomCode}`);
+    // Whatever the room was doing, it must still be doing it. At one
+    // participant there is no second reader, so the room is legitimately back
+    // in the lobby by this point — the rule is "unchanged", not "in a round".
+    check(`${label}: a second host changed the phase`,
+      intruder.last()?.phase === phaseBefore,
+      `${phaseBefore} -> ${intruder.last()?.phase}`);
+    intruder.socket.disconnect();
+
+    assertNoPassageLeak(people, `${label}/round`);
+  }
 
   const phase = host.last()?.phase;
   if (!KEEP) [host, ...people].forEach((p) => p.socket.disconnect());

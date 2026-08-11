@@ -7,7 +7,7 @@
 import { CONDITIONS, FIXES, IMPLEMENTED, isTyping } from "./conditions.js";
 import { pick, pickDictation } from "./passages.js";
 import { resolve } from "./deck.js";
-import { mangle } from "./mangle.js";
+import { mangle, plain } from "./mangle.js";
 import { mangleTyped } from "./butterfingers.js";
 import { BANDS } from "./passages.js";
 
@@ -162,6 +162,40 @@ export function reduce(state, event, config) {
       };
     }
 
+    case "START_ROUND": {
+      // The facilitator picks the person. Observers are never eligible: they
+      // are never assigned a condition and never called on.
+      const who = state.participants[event.reader];
+      if (!who || who.role !== ROLES.PARTICIPANT) return { state, effects };
+
+      const used = state.usedPassages ?? [];
+      const seed = (state.seed ?? 1) + used.length * 101;
+      const passage = pick(BANDS.FULL, used, seed);
+
+      return {
+        state: {
+          ...state,
+          phase: "round",
+          usedPassages: [...used, passage.id],
+          round: {
+            reader: event.reader,
+            passageId: passage.id,
+            seed,
+            finished: false,
+            rendered: plain(passage.text),
+          },
+        },
+        effects,
+      };
+    }
+
+    case "END_ROUND": {
+      // Back to the roster so the facilitator can pick the next reader. Without
+      // this the clean-passage slide is terminal and the loop is a single turn.
+      if (state.phase !== "round") return { state, effects };
+      return { state: { ...state, phase: "lobby", round: null }, effects };
+    }
+
     case "PLAY_CARD": {
       if (!state.round || state.round.accommodated) return { state, effects };
       if (!resolve(event.card, state.round.condition)) {
@@ -196,6 +230,12 @@ export function reduce(state, event, config) {
     }
 
     case "DONE": {
+      if (state.phase === "round" && state.round) {
+        // Always available, no conditions attached. Tagging in and the
+        // facilitator override land later; finishing never gets harder.
+        if (event.token && event.token !== state.round.reader) return { state, effects };
+        return { state: { ...state, round: { ...state.round, finished: true } }, effects };
+      }
       if (!state.tour) return { state, effects };
       const index = state.tour.index + 1;
       if (index >= state.tour.order.length) {

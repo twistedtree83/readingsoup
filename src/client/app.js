@@ -15,6 +15,11 @@ const params = new URLSearchParams(location.search);
 
 let transport = null;
 let pendingRoom = params.get("room") ?? "";
+// A stored token that the server does not recognise — a restarted server, or a
+// new session — is not a resume. Until the person tells us who they are they
+// belong in no room, so incoming views must not paint over the join screen and
+// leave them sitting in a nameless lobby, invisible to the facilitator.
+let awaitingJoin = false;
 
 const el = (html) => {
   const t = document.createElement("template");
@@ -81,6 +86,24 @@ function lobby(view) {
   `);
 }
 
+function watching(view) {
+  // Inverted to ink so it reads as a DIFFERENT MODE, not a disabled screen.
+  // Waiting is the task here, not an absence of one.
+  return el(`
+    <div class="inverted">
+      <p class="eyebrow eyebrow-light">${esc(view.readerName ?? "Someone")} is reading</p>
+      <h1 class="display">${view.finished ? "That's the round." : "Watch and listen."}</h1>
+      <p class="lede">${
+        view.finished
+          ? "Look up at the screen — you're about to find out what it actually said."
+          : "You can't see their screen. Listen to how they're going, not what they're saying."
+      }</p>
+      <div class="spacer"></div>
+      <div class="waiting-cards" aria-hidden="true"><i></i><i></i><i></i></div>
+    </div>
+  `);
+}
+
 function typing(view) {
   const node = el(`
     <div>
@@ -128,7 +151,7 @@ function reading(view) {
            style="letter-spacing:${view.render.letterSpacing};
                   color:color-mix(in srgb, var(--ink) ${view.render.contrast * 100}%, var(--paper))">${tokens}</div>
       ${view.accommodated ? `<p class="helped">That helped. Finish the sentence and move on.</p>` : ""}
-      <p class="note">Which of these would make this easier?</p>
+      ${view.hand?.length ? `<p class="note">Which of these would make this easier?</p>` : ""}
       <div class="hand">${hand(view)}</div>
       <div class="spacer"></div>
       <button class="btn btn-secondary" data-act="done">I've finished reading</button>
@@ -196,10 +219,12 @@ function scheduleExpiries(view) {
 // ------------------------------------------------------------------- driving
 
 function render(view) {
+  if (awaitingJoin) return;
   app.replaceChildren(
     view.phase === "lobby" ? lobby(view) :
     view.phase === "catalogue" ? catalogue(view) :
     view.kind === "typing" ? typing(view) :
+    view.watching ? watching(view) :
     view.tokens ? reading(view) :
     lobby(view)
   );
@@ -225,10 +250,12 @@ async function joinRoom(name, role) {
       role,
       onView: render,
       onIdentity: (id) => {
-        // A stored token pointing at a room that no longer exists is not a
-        // resume. Ask who they are rather than dropping them into a nameless
-        // lobby.
-        if (!name && id && !id.known) app.replaceChildren(joinScreen());
+        if (!name && id && !id.known) {
+          awaitingJoin = true;
+          app.replaceChildren(joinScreen());
+        } else {
+          awaitingJoin = false;
+        }
       },
     });
   } catch {

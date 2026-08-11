@@ -34,13 +34,43 @@ function lobby(view) {
     `);
 }
 
+function announce(view) {
+  // Misregistration used once, on the name.
+  return el(`
+    <section class="slide slide-turn">
+      <p class="turn-lead">Reading next</p>
+      <div class="turn-name">
+        <span class="under" aria-hidden="true">${esc(view.readerName ?? "")}</span>
+        <span class="over">${esc(view.readerName ?? "")}</span>
+      </div>
+      <p class="turn-foot">Everyone else: cards down, ears open.</p>
+    </section>
+  `);
+}
+
+function cleanPassage(view) {
+  const node = el(`
+    <section class="slide slide-clean">
+      <div>
+        <p class="host-eyebrow">WHAT IT ACTUALLY SAID</p>
+        <p class="clean-text">${esc(view.clean ?? "")}</p>
+        <button class="host-link host-next" data-act="next">Next reader</button>
+      </div>
+    </section>
+  `);
+  node.querySelector('[data-act="next"]').addEventListener("click", () =>
+    transport?.send({ type: "END_ROUND" })
+  );
+  return node;
+}
+
 function roster(view) {
   if (!view.roster?.length) return "";
   // Names only. No roles, no counts split by role — this screen is projected to
   // the whole room, and anything role-shaped would disclose an opt-out to
   // everybody at once.
   return `<ul class="roster">${view.roster
-    .map((r) => `<li class="roster-name${r.connected ? "" : " away"}">${esc(r.name)}</li>`)
+    .map((r, i) => `<li><button class="roster-name${r.connected ? "" : " away"}" data-i="${i}">${esc(r.name)}</button></li>`)
     .join("")}</ul>`;
 }
 
@@ -52,10 +82,25 @@ function hostName() {
   return url.replace(/^https?:\/\//, "").replace(/\/+$/, "");
 }
 
+let lastView = null;
+
 function render(view) {
+  lastView = view;
+
+  if (view.phase === "round") {
+    stage.replaceChildren(view.finished ? cleanPassage(view) : announce(view));
+    return;
+  }
+
   const node = lobby(view);
   const left = node.querySelector(".lobby-left");
   left.insertAdjacentHTML("beforeend", roster(view));
+  // The facilitator picks the person. Volunteers and the random draw are S14.
+  node.querySelectorAll(".roster-name").forEach((btn) =>
+    btn.addEventListener("click", () => {
+      transport?.send({ type: "START_ROUND", readerIndex: Number(btn.dataset.i) });
+    })
+  );
   stage.replaceChildren(node);
 }
 
@@ -80,8 +125,10 @@ function offline() {
   );
 }
 
+let transport = null;
+
 try {
-  const transport = await socketTransport({
+  transport = await socketTransport({
     intent: "host",
     onIdentity: (id) => { identity = id ?? {}; },
     onView: render,

@@ -11,7 +11,7 @@ import { randomUUID } from "node:crypto";
 import { Server } from "socket.io";
 
 import { initialState, reduce } from "../core/session.js";
-import { viewFor } from "../core/view.js";
+import { viewFor, rosterTokens } from "../core/view.js";
 import { CONFIG } from "../core/config.js";
 import { qrSvg, joinUrl } from "./qr.js";
 
@@ -119,7 +119,11 @@ io.on("connection", (socket) => {
 
     if (intent === "host") {
       const resumingHost = known && state.participants[presented].role === "host";
-      const liveRoom = state.phase === "lobby" && state.hostToken;
+      // A room is live from the moment it is opened until the session ends —
+      // NOT only while it sits in the lobby. Checking the phase meant a second
+      // /host connection destroyed the room the instant a round started, which
+      // is the worst possible moment: mid-activity, in front of everyone.
+      const liveRoom = Boolean(state.hostToken);
 
       // A room is NEVER destroyed by someone arriving at /host. A facilitator
       // refreshing must not end the session, and a participant who wanders onto
@@ -139,9 +143,13 @@ io.on("connection", (socket) => {
     }
 
     // A stale or cross-surface token that belongs to the host is not identity
-    // for a participant. Mint a fresh one rather than handing over the room.
-    const adoptable = known && state.participants[presented].role !== "host";
-    const t = adoptable ? presented : randomUUID();
+    // for a participant. Never hand over the room.
+    const isHostToken = known && state.participants[presented].role === "host";
+    const adoptable = known && !isHostToken;
+    // Clients mint their own token before connecting, so honour it when it is
+    // not the host's. That makes a repeated `hello` idempotent: JOIN is keyed
+    // by token, so the same person cannot appear on the roster twice.
+    const t = adoptable ? presented : presented && !isHostToken ? presented : randomUUID();
     attach(t);
     if (adoptable) dispatch({ type: "RECONNECT", token: t });
     else if (name) dispatch({ type: "JOIN", token: t, name, role });
@@ -153,6 +161,21 @@ io.on("connection", (socket) => {
 
   socket.on("event", (event = {}) => {
     if (!token) return;
+
+    // The host addresses participants by roster position. Resolving it here
+    // keeps tokens off the projector entirely.
+    if (event.type === "END_ROUND") {
+      if (state.participants[token]?.role !== "host") return;
+      return void dispatch({ type: "END_ROUND" });
+    }
+
+    if (event.type === "START_ROUND" && typeof event.readerIndex === "number") {
+      if (state.participants[token]?.role !== "host") return;
+      const reader = rosterTokens(state)[event.readerIndex];
+      if (!reader) return;
+      return void dispatch({ type: "START_ROUND", reader });
+    }
+
     dispatch({ ...event, token, participantId: token });
   });
 

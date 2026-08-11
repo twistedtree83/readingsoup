@@ -155,3 +155,21 @@ describe("the headcount is honest", () => {
     expect(v.headcount).toBe(2);
   });
 });
+
+describe("a repeated hello never duplicates a participant", () => {
+  test("joining again with the same token updates the entry", () => {
+    // `hello` fires on every socket connect. A phone that reconnects quickly
+    // must not appear on the projector twice.
+    let s = join(open(), "tok-a", "Priya");
+    s = join(s, "tok-a", "Priya");
+    s = join(s, "tok-a", "Priya");
+    const v = viewFor(s, "host-1");
+    expect(v.roster.length).toBe(1);
+    expect(v.headcount).toBe(1);
+  });
+
+  test("two genuinely different people with the same name both appear", () => {
+    let s = join(join(open(), "tok-a", "Priya"), "tok-b", "Priya");
+    expect(viewFor(s, "host-1").roster.length).toBe(2);
+  });
+});

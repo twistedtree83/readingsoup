@@ -35,9 +35,24 @@ const KEY = (intent) => (intent === "host" ? "soup.token.host" : "soup.token.pla
 
 const DEFAULT_URL = () => globalThis.__SOUP_SERVER__ ?? "";
 
+// The token is minted and persisted BEFORE the first connect, not on the way
+// back from the server. `hello` fires on every `connect`, so a socket that
+// reconnects before the first identity arrives would otherwise send a second
+// null token and join the room twice — one person, two names on the projector.
+// Establishing identity client-side makes every hello idempotent.
+function ensureToken(key) {
+  let token = localStorage.getItem(key);
+  if (!token) {
+    token = crypto.randomUUID();
+    localStorage.setItem(key, token);
+  }
+  return token;
+}
+
 export async function socketTransport({ url, intent, name, role, onView, onIdentity, onError }) {
   url = url || DEFAULT_URL();
   const tokenKey = KEY(intent);
+  const myToken = ensureToken(tokenKey);
   // The client library is served by the game server itself, never a CDN — and
   // it is only ever loaded when someone actually joins a room, so the static
   // site keeps working with no server at all.
@@ -52,8 +67,7 @@ export async function socketTransport({ url, intent, name, role, onView, onIdent
     onIdentity?.(id);
   });
 
-  const hello = () =>
-    socket.emit("hello", { token: localStorage.getItem(tokenKey), intent, name, role });
+  const hello = () => socket.emit("hello", { token: myToken, intent, name, role });
 
   socket.on("connect_error", () => onError?.());
 

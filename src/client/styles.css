@@ -281,3 +281,32 @@ body.host #stage { min-height: 100dvh; }
   border: 5px solid var(--deep); padding: 18px 26px; text-decoration: none;
   font-size: clamp(20px, 2.2vw, 36px); font-weight: 900; letter-spacing: -0.02em;
 }
+
+/* --- watching: a different mode, not a disabled screen -------------------- */
+
+#app:has(.inverted) { background: var(--ink); }
+.inverted { color: var(--paper); display: flex; flex-direction: column; flex: 1; }
+.inverted .display, .inverted .lede { color: var(--paper); }
+.eyebrow-light { color: var(--red-tint) !important; }
+.inverted .waiting-cards i { background: var(--deep); border-color: var(--paper); }
+
+/* --- projector: whose turn, and the relief slide -------------------------- */
+
+.slide-turn { flex-direction: column; align-items: flex-start; justify-content: center; background: var(--red); color: var(--paper); }
+.turn-lead { font-size: clamp(26px, 3.2vw, 52px); font-weight: 800; margin: 0; }
+.turn-name { position: relative; margin: 1vh 0 4vh; }
+.turn-name span {
+  display: block; font-size: clamp(90px, 18vw, 300px); font-weight: 900;
+  letter-spacing: -0.05em; line-height: 0.85;
+}
+.turn-name .under { position: absolute; top: 0.02em; left: 0.03em; color: var(--ink); }
+.turn-name .over { position: relative; color: var(--paper); }
+.turn-foot { font-size: clamp(24px, 3.4vw, 56px); font-weight: 800; margin: 0; }
+
+.slide-clean { align-items: center; }
+.clean-text {
+  font-size: clamp(34px, 5.4vw, 86px); font-weight: 800; letter-spacing: -0.02em;
+  line-height: 1.25; margin: 3vh 0 0; text-wrap: pretty;
+}
+.roster li { list-style: none; }
+button.roster-name { font-family: var(--font); background: var(--paper); color: var(--ink); cursor: pointer; }

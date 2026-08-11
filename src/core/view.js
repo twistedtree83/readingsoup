@@ -8,6 +8,7 @@
 //   3. No timing, score or ranking field exists to leak.
 
 import { fullDeck } from "./deck.js";
+import { byId } from "./passages.js";
 import { ROLES } from "./session.js";
 import {
   CARD_LABELS,
@@ -21,6 +22,33 @@ export function viewFor(state, participantId) {
   const me = state.participants?.[participantId];
 
   if (me?.role === ROLES.HOST) return hostView(state);
+  if (state.phase === "round") {
+    const readerName = state.participants[state.round.reader]?.name;
+
+    if (state.reader === participantId || state.round.reader === participantId) {
+      return {
+        phase: "round",
+        mode: state.mode,
+        role: me?.role ?? "participant",
+        reader: true,
+        readerName,
+        tokens: state.round.rendered.tokens,
+        render: state.round.rendered.render,
+        finished: state.round.finished,
+      };
+    }
+
+    // Everyone else: no tokens, no render mode, no passage. Just who to watch.
+    return {
+      phase: "round",
+      mode: state.mode,
+      role: me?.role ?? "spectator",
+      watching: true,
+      readerName,
+      finished: state.round.finished,
+    };
+  }
+
   if (state.phase === "lobby") {
     return {
       phase: "lobby",
@@ -101,7 +129,32 @@ export function viewFor(state, participantId) {
 // derived from who chose to observe. This screen is shown to the entire room at
 // once, so anything role-shaped on it would disclose an opt-out to everybody
 // simultaneously — the exact thing the observer role exists to prevent.
+// The roster's order, as tokens. The host addresses participants by POSITION,
+// never by token: a token is an auth credential, and handing one to the
+// projector would let the facilitator act as that participant.
+export function rosterTokens(state) {
+  return Object.values(state.participants ?? {})
+    .filter((p) => p.role !== ROLES.HOST)
+    .sort((a, b) => a.order - b.order)
+    .map((p) => p.token);
+}
+
 function hostView(state) {
+  if (state.phase === "round") {
+    return {
+      phase: "round",
+      mode: state.mode,
+      role: ROLES.HOST,
+      roomCode: state.roomCode,
+      readerName: state.participants[state.round.reader]?.name,
+      finished: state.round.finished,
+      // The clean passage exists client-side in exactly one place: here, and
+      // only once the round is over.
+      clean: state.round.finished ? byId(state.round.passageId)?.text : undefined,
+      canAdvance: state.round.finished,
+    };
+  }
+
   const roster = Object.values(state.participants)
     .filter((p) => p.role !== ROLES.HOST)
     .sort((a, b) => a.order - b.order)

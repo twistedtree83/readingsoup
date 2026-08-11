@@ -22,6 +22,13 @@ function tokenise(passage) {
   }));
 }
 
+// An unmangled passage, delivered through the same token contract as every
+// barrier. The client is dumb either way: it never receives a raw string it
+// could have been handed directly.
+export function plain(passage) {
+  return { condition: null, render: { ...CLEAN_RENDER }, tokens: tokenise(passage) };
+}
+
 export function mangle(passage, condition, config, opts = {}) {
   if (!IMPLEMENTED.includes(condition)) {
     throw new Error(`mangle: condition "${condition}" is not implemented yet`);

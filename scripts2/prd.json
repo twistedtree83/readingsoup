@@ -121,7 +121,7 @@
       "id": "S12",
       "issue": 35,
       "title": "Turn loop and private passage delivery",
-      "passes": false,
+      "passes": true,
       "afk": true,
       "depends": [
         "S10"
