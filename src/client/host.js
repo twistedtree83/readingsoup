@@ -4,6 +4,23 @@
 // It renders whatever ClientView the server sends and holds no game state.
 
 import { socketTransport } from "/src/client/transport.js";
+import { configFromQuery } from "/src/core/config.js";
+
+// The two countdowns can be shortened from the URL:
+//
+//   /host?round.silentRoundMs=8000&round.watchWindowMs=4000
+//
+// For filming, and for a facilitator squeezed into the back half of a meeting.
+// Nothing about the server's own configuration changes — both events already
+// carry a duration, because the harness needed to run a real silent round and a
+// real watch window in a second, and this rides on the same field.
+//
+// Only sent when the URL actually asks. Passing the defaults every time would
+// quietly make the projector the authority on pacing instead of the config.
+const asked = new URLSearchParams(location.search);
+const tuned = configFromQuery(location.search);
+const silentMs = asked.has("round.silentRoundMs") ? tuned.round.silentRoundMs : undefined;
+const watchMs = asked.has("round.watchWindowMs") ? tuned.round.watchWindowMs : undefined;
 
 const stage = document.getElementById("stage");
 const el = (html) => {
@@ -361,10 +378,10 @@ function drive(view) {
   // The human owns who reads — named, or handed to chance. Which barrier they
   // get is never on this screen: the app owns that.
   node.querySelector('[data-act="start"]')?.addEventListener("click", () =>
-    transport?.send({ type: "START_SESSION" })
+    transport?.send({ type: "START_SESSION", durationMs: silentMs })
   );
   node.querySelector('[data-act="draw"]')?.addEventListener("click", () =>
-    transport?.send({ type: "START_ROUND", random: true })
+    transport?.send({ type: "START_ROUND", random: true, watchWindowMs: watchMs })
   );
   // The reveal is complete whenever it is reached: everybody active met a
   // barrier in the silent round, so ending after four spotlights or after
@@ -394,7 +411,7 @@ function drive(view) {
   if (pickable) {
     node.querySelectorAll(".roster-name").forEach((btn) =>
       btn.addEventListener("click", () => {
-        transport?.send({ type: "START_ROUND", readerIndex: Number(btn.dataset.i) });
+        transport?.send({ type: "START_ROUND", readerIndex: Number(btn.dataset.i), watchWindowMs: watchMs });
       })
     );
   } else {

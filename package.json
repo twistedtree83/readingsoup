@@ -12,7 +12,8 @@
     "check:privacy": "bun test test/privacy.test.js",
     "sim": "bun run scripts/sim.js",
     "static": "bun run scripts/static.js",
-    "build": "bash scripts/build-static.sh"
+    "build": "bash scripts/build-static.sh",
+    "demo": "bun run scripts/demo.js"
   },
   "dependencies": {
     "qrcode-svg": "^1.1.0",
