@@ -43,6 +43,17 @@ function landing() {
       <button class="btn btn-primary" data-act="solo">Try it yourself</button>
       <button class="btn btn-secondary" data-act="room">I have a room code</button>
       <p class="note">No sign-in, nothing saved, nothing timed.</p>
+      <!--
+        The facilitator's way in. Deliberately a quiet link rather than a third
+        button: the two buttons above are a participant's choice, and the whole
+        join screen is built so that neither of THOSE looks weightier than the
+        other. A third button in the stack would put the person running the
+        session in competition with the people taking part in it.
+
+        It still has to exist. Until now the projector was only reachable by
+        knowing to type /host, which is not a thing anybody knows.
+      -->
+      <a class="host-way-in" href="/host">I'm running this for a group →</a>
     </div>
   `);
   node.querySelector('[data-act="solo"]').addEventListener("click", startSolo);

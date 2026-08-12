@@ -104,6 +104,18 @@ html, body {
 
 .note { font-size: 17px; font-weight: 600; line-height: 1.35; margin: 16px 0 0; }
 
+/* The facilitator's route. Findable, never competing with the two buttons
+   above it — the participant's choice is the one that screen is for. */
+.host-way-in {
+  align-self: flex-start;
+  margin: 22px 0 0;
+  font-size: 17px;
+  font-weight: 800;
+  color: var(--red);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 /* --- the passage ------------------------------------------------------- */
 
 .passage {
