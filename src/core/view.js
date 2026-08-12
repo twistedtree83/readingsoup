@@ -9,6 +9,7 @@
 
 import { fullDeck } from "./deck.js";
 import { byId, DEBRIEF } from "./passages.js";
+import { researchFor, THE_SPINE, ON_SIMULATIONS } from "./research.js";
 import { mangle, plain } from "./mangle.js";
 import { CONFIG } from "./config.js";
 import { ROLES, eligibleForTag, activeParticipants, roundBudget, roundsPerPerson } from "./session.js";
@@ -241,6 +242,11 @@ export function viewFor(state, participantId, config) {
       ...base,
       catalogue: catalogue((condition) => mine.includes(condition)),
       cardLabels: CARD_LABELS,
+      // Said once, on the phone, under the six. The first explains why any of
+      // this costs anything; the second is the evidence that this kind of
+      // activity can backfire, and why this one is shaped the way it is.
+      // Leaving that out would be quoting the research selectively.
+      reading: [THE_SPINE, ON_SIMULATIONS],
     };
   }
 
@@ -267,6 +273,8 @@ export function viewFor(state, participantId, config) {
       accommodated: state.round.accommodated,
       hand: fullDeck(),
       cardLabels: CARD_LABELS,
+      research: state.round.accommodated ? researchFor(state.round.condition) : undefined,
+      researchTitle: state.round.accommodated ? CONDITION_LABELS[state.round.condition] : undefined,
     };
   }
 
@@ -279,6 +287,11 @@ export function viewFor(state, participantId, config) {
     accommodated: state.round.accommodated,
     hand: fullDeck(),
     cardLabels: CARD_LABELS,
+    // Only once they have worked out which card lifts it. Naming the barrier
+    // while the puzzle is still open would hand over the answer, and the
+    // diagnosing is the half of this that transfers.
+    research: state.round.accommodated ? researchFor(state.round.condition) : undefined,
+    researchTitle: state.round.accommodated ? CONDITION_LABELS[state.round.condition] : undefined,
   };
 }
 
@@ -308,7 +321,11 @@ function catalogue(had) {
     description: CONDITION_DESCRIPTIONS[condition],
     card: FIXES[condition],
     cardLabel: CARD_LABELS[FIXES[condition]],
-    ...(had ? { had: had(condition) } : {}),
+    // Phones only. `had` is the tell: the projector passes no predicate because
+    // it must not mark anybody, and it must not carry this either — paragraphs
+    // of evidence in projector type is nobody's idea of a slide, and the room
+    // should be talking at that point rather than reading.
+    ...(had ? { had: had(condition), research: researchFor(condition) } : {}),
   }));
 }
 

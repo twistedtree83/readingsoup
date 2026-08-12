@@ -212,6 +212,37 @@ html, body {
   margin: 22px 0 0;
 }
 
+/* --- the research drawer -------------------------------------------------- */
+
+/* Shut by default and quiet when open. Somebody who has just been through a
+   barrier can close the tab; somebody who wants to know why should not have to
+   go looking. Type is smaller than the activity's, because this is reference
+   rather than the thing itself — but never below 16px. */
+.research { margin: 16px 0 0; border-top: 3px solid var(--ink); padding-top: 12px; }
+.research-open {
+  font-size: 17px; font-weight: 800; letter-spacing: -0.01em;
+  cursor: pointer; list-style: none; color: var(--red);
+}
+.research-open::-webkit-details-marker { display: none; }
+.research-open::after { content: " +"; }
+.research[open] .research-open::after { content: " –"; }
+.research-body { font-size: 17px; font-weight: 600; line-height: 1.45; }
+.research-body p { margin: 12px 0 0; }
+.research-title { font-weight: 900; font-size: 19px; letter-spacing: -0.02em; }
+.research-lead { font-weight: 700; }
+.research-heading {
+  font-size: 14px; font-weight: 800; text-transform: uppercase;
+  letter-spacing: 0.05em; color: var(--red); margin-top: 16px !important;
+}
+/* The entries where the evidence contradicts the obvious reading get a visible
+   edge, because they are corrections rather than background. */
+.research-caution { border-left: 5px solid var(--red); padding-left: 12px; }
+.research-sources { list-style: none; padding: 0; margin: 16px 0 0; }
+.research-sources li { margin-top: 10px; font-size: 16px; line-height: 1.4; }
+.research-sources a { color: var(--ink); text-underline-offset: 3px; }
+.research-note { display: block; font-weight: 600; opacity: 0.8; margin-top: 4px; }
+.research-framing { margin-top: 26px; }
+
 .catalogue-item {
   border: 4px solid var(--ink);
   padding: 18px;

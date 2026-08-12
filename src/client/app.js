@@ -214,6 +214,7 @@ function typing(view) {
       <div class="spacer"></div>
       <button class="btn btn-secondary" data-act="done">I've finished</button>
       ${tagIn(view)}
+      ${researchDrawer(view.research, view.researchTitle)}
       ${optOut(view)}
     </div>
   `);
@@ -272,6 +273,7 @@ function reading(view) {
           : `<button class="btn btn-secondary" data-act="done">I've finished reading</button>`
       }
       ${tagIn(view)}
+      ${researchDrawer(view.research, view.researchTitle)}
       ${optOut(view)}
     </div>
   `);
@@ -341,6 +343,63 @@ function optOut(view) {
   return `<button class="opt-out" data-act="opt-out">Watch from here instead</button>`;
 }
 
+// ------------------------------------------------------- the research drawer
+
+// Folded shut by default, everywhere it appears. Somebody who has just been
+// through a barrier is entitled to close the laptop and go home; somebody who
+// wants to know why it happened should not have to go looking. A drawer is the
+// only shape that serves both.
+function drawer(summary, inner) {
+  return `
+    <details class="research">
+      <summary class="research-open">${esc(summary)}</summary>
+      <div class="research-body">${inner}</div>
+    </details>`;
+}
+
+const sourceList = (sources = []) =>
+  !sources.length
+    ? ""
+    : `<ul class="research-sources">${sources
+        .map(
+          (s) => `<li>
+            <a href="${esc(s.url)}" target="_blank" rel="noopener noreferrer">${esc(s.cite)}</a>
+            ${s.note ? `<span class="research-note">${esc(s.note)}</span>` : ""}
+          </li>`
+        )
+        .join("")}</ul>`;
+
+// A barrier's entry: what it stands for, what to look for, and — where the
+// evidence contradicts the obvious reading of it — what not to conclude.
+function researchDrawer(entry, title) {
+  if (!entry) return "";
+  return drawer(`Why this happens, and what to look for`, `
+    ${title ? `<p class="research-title">${esc(title)}</p>` : ""}
+    <p class="research-lead">${esc(entry.standsFor)}</p>
+    <p class="research-heading">What you would notice</p>
+    <p>${esc(entry.notice)}</p>
+    ${
+      entry.caution
+        ? `<p class="research-heading">Careful</p><p class="research-caution">${esc(entry.caution)}</p>`
+        : ""
+    }
+    ${sourceList(entry.sources)}
+  `);
+}
+
+const framingDrawers = (pieces = []) =>
+  pieces
+    .map((piece) =>
+      drawer(
+        piece.title,
+        `${piece.body
+          .split("\n\n")
+          .map((para) => `<p>${esc(para)}</p>`)
+          .join("")}${sourceList(piece.sources)}`
+      )
+    )
+    .join("");
+
 function wireRound(node) {
   node.querySelectorAll(".card").forEach((btn) =>
     btn.addEventListener("click", () => send({ type: "PLAY_CARD", card: btn.dataset.card }))
@@ -369,9 +428,11 @@ function catalogue(view) {
           </div>
           <p class="cat-desc">${esc(c.description)}</p>
           <div class="cat-card" data-card="${c.card}">${esc(c.cardLabel)}</div>
+          ${researchDrawer(c.research)}
         </div>`
         )
         .join("")}
+      ${view.reading?.length ? `<div class="research-framing">${framingDrawers(view.reading)}</div>` : ""}
       <p class="note">Nothing here was recorded. Nothing was timed.</p>
       ${transport?.kind === "loopback" ? `<button class="btn btn-primary" data-act="again">Start again</button>` : ""}
     </div>
