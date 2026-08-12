@@ -456,11 +456,17 @@ function render(view) {
 }
 
 function startSolo() {
+  // A dead token may have left a live socket behind while we showed the front
+  // door. Let it go and stop holding the renderer shut, or the tour paints
+  // nothing and a stray room view paints over it.
+  transport?.stop?.();
+  awaitingJoin = false;
   transport = loopback(config, { participantId: ME, onView: render });
   transport.send({ type: "START_SOLO", seed: Math.floor(Math.random() * 1e9) });
 }
 
 async function joinRoom(name, role) {
+  transport?.stop?.();
   app.replaceChildren(el(`<div><p class="eyebrow">Connecting…</p></div>`));
   try {
     transport = await socketTransport({
@@ -470,8 +476,17 @@ async function joinRoom(name, role) {
       onView: render,
       onIdentity: (id) => {
         if (!name && id && !id.known) {
+          // The token is dead: the session ended, or this is a visit weeks
+          // later. There is nothing to resume, so send them to the front door
+          // — a name prompt with no way out of it is a trap, and it is where
+          // everybody who ever joined a room used to land forever.
+          //
+          // Somebody who scanned a QR is a different case: they arrived with a
+          // room in the URL and meant to join one, so they still get the name
+          // prompt. A genuine mid-session resume never reaches here at all,
+          // because the server recognises the token.
           awaitingJoin = true;
-          app.replaceChildren(joinScreen());
+          app.replaceChildren(pendingRoom ? joinScreen() : landing());
         } else {
           awaitingJoin = false;
         }

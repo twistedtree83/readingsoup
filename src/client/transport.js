@@ -24,6 +24,7 @@ export function loopback(config, { participantId, onView }) {
       emit();
     },
     start: emit,
+    stop: () => {},
   };
 }
 
@@ -77,6 +78,10 @@ export async function socketTransport({ url, intent, name, role, onView, onIdent
     kind: "socket",
     send: (event) => socket.emit("event", event),
     start: () => {},
+    // Somebody who arrives holding a dead token is connected before we know it
+    // is dead. If they then choose the solo tour instead, this socket has to go
+    // — otherwise it keeps pushing room views at a renderer that has moved on.
+    stop: () => socket.disconnect(),
   };
 }
 
