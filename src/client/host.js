@@ -137,6 +137,10 @@ function reveal(view) {
                 d ? "Next question" : "Start the discussion"
               }</button>`
         }
+        <div class="reveal-exits">
+          ${d ? `<button class="host-quiet" data-act="reveal">Back to the six</button>` : ""}
+          <button class="host-quiet" data-act="end-session">End the session</button>
+        </div>
       </div>
     </section>
   `);
@@ -146,7 +150,26 @@ function reveal(view) {
   node.querySelector('[data-act="prompt"]')?.addEventListener("click", () =>
     transport?.send({ type: "NEXT_PROMPT" })
   );
+  wireExits(node);
   return node;
+}
+
+// The two ways out, wherever they appear. The reveal needs them as much as the
+// lobby does: a facilitator who has clicked past the last question, or who has
+// walked into somebody else's finished session, was previously stranded on the
+// final slide with no control that did anything.
+function wireExits(node) {
+  node.querySelector('[data-act="reveal"]')?.addEventListener("click", () =>
+    transport?.send({ type: "START_REVEAL" })
+  );
+  // A clean room, straight away, so the activity can run twice in a day. Every
+  // phone from the last session is turned back into a stranger, which is the
+  // point rather than a side effect.
+  node.querySelector('[data-act="end-session"]')?.addEventListener("click", () => {
+    if (confirm("End this session and start a fresh room? Everyone will need to join again.")) {
+      transport?.send({ type: "END_SESSION" });
+    }
+  });
 }
 
 // A second browser on /host watches rather than drives. The facilitator sees
@@ -386,17 +409,7 @@ function drive(view) {
   // The reveal is complete whenever it is reached: everybody active met a
   // barrier in the silent round, so ending after four spotlights or after
   // twelve leaves nobody blank.
-  node.querySelector('[data-act="reveal"]')?.addEventListener("click", () =>
-    transport?.send({ type: "START_REVEAL" })
-  );
-  // A clean room, straight away, so the activity can run twice in a day. Every
-  // phone from the last session is turned back into a stranger, which is the
-  // point rather than a side effect.
-  node.querySelector('[data-act="end-session"]')?.addEventListener("click", () => {
-    if (confirm("End this session and start a fresh room? Everyone will need to join again.")) {
-      transport?.send({ type: "END_SESSION" });
-    }
-  });
+  wireExits(node);
   node.querySelectorAll(".plan-n").forEach((btn) =>
     btn.addEventListener("click", () =>
       transport?.send({ type: "SET_SPOTLIGHT_COUNT", count: Number(btn.dataset.count) })

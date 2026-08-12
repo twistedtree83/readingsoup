@@ -589,7 +589,11 @@ export function reduce(state, event, config) {
       // Six things you can do on Monday, and on each phone the ones that person
       // actually met. The room's own attribution happens by show of hands,
       // which keeps disclosure voluntary — the app publishes no map.
-      if (state.phase === "catalogue") return { state, effects };
+      //
+      // Always back to the six, even from the reveal itself. This used to
+      // return early once the catalogue was up, which made the discussion a
+      // one-way street: click past a question and there was no way back to the
+      // thing the room is meant to leave with.
       return {
         state: { ...state, phase: "catalogue", round: null, silent: null, debrief: 0 },
         effects,

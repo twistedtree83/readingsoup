@@ -191,6 +191,23 @@ describe("the debrief", () => {
     expect(viewFor(s, "p0").catalogue.length).toBe(IMPLEMENTED.length);
   });
 
+  test("showing the six again rewinds the discussion", () => {
+    // A facilitator who clicks one question too far, or who walks into a room
+    // left on the last slide of somebody else's session, needs a way back.
+    // This used to return early once the catalogue was up, which made the
+    // discussion one-way and left the reveal with no working control at all.
+    let s = session(8);
+    for (let i = 0; i < 3; i++) s = step(s, { type: "NEXT_PROMPT" }, T0 + 700_000 + i);
+    expect(viewFor(s, "host").debrief.index).toBe(3);
+
+    s = step(s, { type: "START_REVEAL" }, T0 + 800_000);
+    expect(viewFor(s, "host").debrief).toBeUndefined();
+    expect(viewFor(s, "host").catalogue.length).toBe(IMPLEMENTED.length);
+    // ...and the questions still run from the top afterwards.
+    s = step(s, { type: "NEXT_PROMPT" }, T0 + 801_000);
+    expect(viewFor(s, "host").debrief.prompt).toBe(DEBRIEF[0]);
+  });
+
   test("a prompt outside the reveal is nothing", () => {
     const s = step(room(8), { type: "NEXT_PROMPT" });
     expect(s.phase).toBe("lobby");
