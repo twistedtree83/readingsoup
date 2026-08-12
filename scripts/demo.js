@@ -49,16 +49,50 @@ function phone(name) {
   return p;
 }
 
-const until = async (predicate, timeout = 20_000) => {
-  for (let waited = 0; waited < timeout; waited += 100) {
+// Never waits in silence. A demo that stops with no output looks broken even
+// when it is doing exactly what it should, so anything slow says what it is
+// waiting for and keeps saying it.
+async function waitFor(label, predicate, timeout = 180_000) {
+  const started = Date.now();
+  let nudged = 0;
+  while (Date.now() - started < timeout) {
     if (predicate()) return true;
-    await wait(100);
+    const seconds = Math.floor((Date.now() - started) / 1000);
+    if (seconds >= 12 && seconds >= nudged + 12) {
+      nudged = seconds;
+      console.log(`     …still waiting: ${label}`);
+    }
+    await wait(200);
   }
+  console.log(`\n  Gave up waiting: ${label}`);
   return false;
-};
+}
+
+const PROJECTOR = `${URL}/host?round.silentRoundMs=6000&round.watchWindowMs=3000`;
 
 console.log(`\n  soup demo  ${URL}  ${CAST.length} simulated phones${HUMAN ? ` + ${HUMAN}` : ""}`);
-console.log(`  Open the projector at ${URL}/host before you start recording.\n`);
+console.log(`\n  Projector, with the countdowns cut down for filming:`);
+console.log(`  ${PROJECTOR}\n`);
+
+// THE PROJECTOR HAS TO BE OPEN FIRST, and this waits rather than trusting it.
+//
+// Opening /host opens a room, and opening a room clears the participant list —
+// deliberately, so yesterday's phones cannot wander into today's session. Seat
+// anybody before that happens and they are wiped the moment the facilitator
+// arrives: the roster empties, Start does nothing because there is nobody
+// active, and the demo sits there looking hung when it is really waiting for a
+// room that has no people in it.
+//
+// A nameless socket is the probe. The server hands out a token and a view but
+// never adds it to the roster, so asking the question does not disturb the
+// answer.
+const scout = phone(null);
+if (!(await waitFor("a room to exist — open the projector now", () => scout.last()?.roomCode, 300_000))) {
+  console.log(`\n  Open ${PROJECTOR} and run this again.\n`);
+  process.exit(1);
+}
+scout.socket.disconnect();
+console.log(`  Room ${scout.last().roomCode} is open.`);
 
 say("They arrive.");
 const room = [];
@@ -69,28 +103,36 @@ for (const name of CAST) {
   await wait(650);
 }
 
+// If the room was reopened underneath them — a refresh of /host, or End the
+// session — they are off the roster and nothing that follows will work. Better
+// to say so than to wait out a two minute timeout.
+if (!(await waitFor("the phones to appear on the roster", () => room.every((p) => p.last()?.joined !== false), 15_000))) {
+  console.log(`\n  They are not on the roster. The projector was probably opened or reset`);
+  console.log(`  after they joined, which clears the room. Restart this script.\n`);
+  process.exit(1);
+}
+
 if (HUMAN) {
   say(`Waiting for ${HUMAN} to join on a real phone…`);
-  await until(() => room[0].last()?.roomCode !== undefined);
-  await until(() => false, 30_000); // give them time to scan and type a name
+  await waitFor(`${HUMAN} to scan the code and pick a name`, () => false, 45_000);
 }
 
 await beat();
 say("Press Start on the projector. Everyone reads the same forty words at once.");
-await until(() => room.every((p) => p.last()?.phase === "silent"), 120_000);
+await waitFor("Start to be pressed on the projector", () => room.every((p) => p.last()?.phase === "silent"));
 say("They are all on the same passage, and each one is hard for a different reason.");
 
-await until(() => room[0].last()?.phase === "lobby", 180_000);
+await waitFor("the silent round to finish, then Carry on", () => room[0].last()?.phase === "lobby");
 await beat();
 say("Now pick a reader on the projector, or draw at random.");
-await until(() => room.some((p) => p.last()?.phase === "round"), 180_000);
+await waitFor("a reader to be picked on the projector", () => room.some((p) => p.last()?.phase === "round"));
 
 const readerName = room.find((p) => p.last()?.reader)?.name;
 say(readerName ? `${readerName} is reading. Cards are locked for the watch window.` : "Someone is reading.");
 const table = room.filter((p) => !p.last()?.reader);
 
 // Wait out the lock, so the film shows the room having to watch first.
-await until(() => table[0]?.last()?.locked === false, 60_000);
+await waitFor("the watch window to run down", () => table[0]?.last()?.locked === false, 60_000);
 await beat();
 
 // A wrong card, on purpose. The projector says one card played and names
