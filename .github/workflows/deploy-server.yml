@@ -3,9 +3,21 @@ name: Deploy realtime server
 on:
   push:
     branches: [main]
+    # The Fly app serves the browser half as well as the sockets, so a change to
+    # a stylesheet or a screen has to redeploy it. These were missing, and the
+    # gap is silent by nature: a client-only commit pushes green, nothing runs,
+    # and the live site quietly stays on the old code. It cost three manual
+    # dispatches in one afternoon before anybody noticed.
+    #
+    # The filter still earns its place — a deploy restarts the machine and
+    # discards the crash snapshot, so the task graph, the ledgers and the tests
+    # should not trigger one.
     paths:
       - "src/core/**"
       - "src/server/**"
+      - "src/client/**"
+      - "index.html"
+      - "host.html"
       - "package.json"
       - "bun.lock"
       - "Dockerfile"
